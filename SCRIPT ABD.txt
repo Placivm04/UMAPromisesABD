@@ -1,0 +1,483 @@
+-- Generado por Oracle SQL Developer Data Modeler 24.3.1.351.0831
+--   en:        2025-03-26 17:51:09 CET
+--   sitio:      Oracle Database 11g
+--   tipo:      Oracle Database 11g
+
+
+
+-- predefined type, no DDL - MDSYS.SDO_GEOMETRY
+
+-- predefined type, no DDL - XMLTYPE
+
+-- CREAMOS EL USUARIO PARA PLYTIX
+CREATE USER PLYTIX IDENTIFIED BY PLYTIX123
+    DEFAULT TABLESPACE TS_PLYTIX
+    QUOTA 2G ON TS_PLYTIX
+    QUOTA 1G ON TS_INDICES;
+
+ALTER USER PLYTIX ACCOUNT LOCK; -- LOS USUARIOS PROPIETARIOS DE LOS ESQUEMAS ES MUY COMÚN DESACTIVARLOS
+
+GRANT DBA TO PLYTIX;
+
+ALTER SESSION SET CURRENT_SCHEMA = PLYTIX; -- CUANDO HAGA UN CREATE TABLE SIN ESTAR ESPECIFICADO SE LOS DOY A PLYTIX.
+-- Generado por Oracle SQL Developer Data Modeler 24.3.1.351.0831
+--   en:        2025-03-27 14:10:29 CET
+--   sitio:      Oracle Database 11g
+--   tipo:      Oracle Database 11g
+
+
+
+-- predefined type, no DDL - MDSYS.SDO_GEOMETRY
+
+-- predefined type, no DDL - XMLTYPE
+
+CREATE TABLE Activo 
+    ( 
+     Id        INTEGER  NOT NULL , 
+     Nombre    VARCHAR2 (100 CHAR)  NOT NULL , 
+     Tamano    INTEGER  NOT NULL , 
+     Tipo      VARCHAR2 (100 CHAR) , 
+     URL       VARCHAR2 (200 CHAR) , 
+     Cuenta_Id INTEGER  NOT NULL 
+    ) 
+;
+
+ALTER TABLE Activo 
+    ADD CONSTRAINT Activo_PK PRIMARY KEY ( Id, Cuenta_Id ) ;
+
+CREATE TABLE Atributo 
+    ( 
+     Id     INTEGER  NOT NULL , 
+     Nombre VARCHAR2 (100 CHAR)  NOT NULL , 
+     Tipo   VARCHAR2 (50 CHAR) , 
+     Creado DATE  NOT NULL 
+    ) 
+;
+
+ALTER TABLE Atributo 
+    ADD CONSTRAINT Atributo_PK PRIMARY KEY ( Id ) ;
+
+CREATE TABLE Atributos_Producto 
+    ( 
+     Valor              VARCHAR2 (100 CHAR)  NOT NULL , 
+     Producto_GTIN      INTEGER  NOT NULL , 
+     Atributo_Id        INTEGER  NOT NULL , 
+     Producto_Cuenta_Id INTEGER  NOT NULL 
+    ) 
+;
+
+ALTER TABLE Atributos_Producto 
+    ADD CONSTRAINT Atributos_Producto_PK PRIMARY KEY ( Producto_GTIN, Producto_Cuenta_Id, Atributo_Id ) ;
+
+CREATE TABLE Categoria 
+    ( 
+     Id        INTEGER  NOT NULL , 
+     Nombre    VARCHAR2 (100 CHAR)  NOT NULL , 
+     Cuenta_Id INTEGER  NOT NULL 
+    ) 
+;
+
+ALTER TABLE Categoria 
+    ADD CONSTRAINT Categoria_PK PRIMARY KEY ( Id, Cuenta_Id ) ;
+
+CREATE TABLE Categoria_Activos 
+    ( 
+     Id        INTEGER  NOT NULL , 
+     Nombre    VARCHAR2 (100 CHAR)  NOT NULL , 
+     Cuenta_Id INTEGER  NOT NULL 
+    ) 
+;
+
+ALTER TABLE Categoria_Activos 
+    ADD CONSTRAINT Categoria_Activos_PK PRIMARY KEY ( Id, Cuenta_Id ) ;
+
+CREATE TABLE Cuenta 
+    ( 
+     Id                INTEGER  NOT NULL , 
+     Nombre            VARCHAR2 (100 CHAR)  NOT NULL , 
+     DirecciónFiscal   VARCHAR2 (200 CHAR)  NOT NULL , 
+     NIF               VARCHAR2 (50 CHAR)  NOT NULL , 
+     FechaAlta         DATE , 
+     Plan_Id           INTEGER  NOT NULL , 
+     Usuario_Cuenta_Id INTEGER , 
+     Usuario_Id        INTEGER 
+    ) 
+;
+CREATE UNIQUE INDEX Cuenta__IDX ON Cuenta 
+    ( 
+     Usuario_Id ASC 
+    ) 
+;
+
+ALTER TABLE Cuenta 
+    ADD CONSTRAINT Cuenta_PK PRIMARY KEY ( Id ) ;
+
+CREATE TABLE Plan 
+    ( 
+     Id                 INTEGER  NOT NULL , 
+     Productos          VARCHAR2 (100 CHAR)  NOT NULL , 
+     Activos            VARCHAR2 (100 CHAR)  NOT NULL , 
+     Almacenamiento     VARCHAR2 (100 CHAR)  NOT NULL , 
+     CategoriasProducto VARCHAR2 (100 CHAR)  NOT NULL , 
+     CategoriasActivos  VARCHAR2 (100 CHAR)  NOT NULL , 
+     Relaciones         VARCHAR2 (100 CHAR)  NOT NULL , 
+     PrecioAnual        VARCHAR2 (50 CHAR)  NOT NULL , 
+     Nombre             VARCHAR2 (100 CHAR)  NOT NULL 
+    ) 
+;
+
+ALTER TABLE Plan 
+    ADD CONSTRAINT Plan_PK PRIMARY KEY ( Id ) ;
+
+CREATE TABLE Producto 
+    ( 
+     GTIN       INTEGER  NOT NULL , 
+     SKU        VARCHAR2 (100 CHAR)  NOT NULL , 
+     Nombre     VARCHAR2 (100 CHAR)  NOT NULL , 
+     Miniatura  VARCHAR2 (300 CHAR) , 
+     TextoCorto VARCHAR2 (300 CHAR) , 
+     Creado     DATE  NOT NULL , 
+     Modificado DATE , 
+     Cuenta_Id  INTEGER  NOT NULL 
+    ) 
+;
+
+ALTER TABLE Producto 
+    ADD CONSTRAINT Producto_PK PRIMARY KEY ( GTIN, Cuenta_Id ) ;
+
+CREATE TABLE Rel_Activ_CategAct 
+    ( 
+     Activo_Id                   INTEGER  NOT NULL , 
+     Activo_Cuenta_Id            INTEGER  NOT NULL , 
+     Categoria_Activos_Id        INTEGER  NOT NULL , 
+     Categoria_Activos_Cuenta_Id INTEGER  NOT NULL 
+    ) 
+;
+
+ALTER TABLE Rel_Activ_CategAct 
+    ADD CONSTRAINT Rel_Activ_CategAct_PK PRIMARY KEY ( Activo_Id, Activo_Cuenta_Id, Categoria_Activos_Id, Categoria_Activos_Cuenta_Id ) ;
+
+CREATE TABLE Rel_Prod_Activ 
+    ( 
+     Activo_Id          INTEGER  NOT NULL , 
+     Activo_Cuenta_Id   INTEGER  NOT NULL , 
+     Producto_GTIN      INTEGER  NOT NULL , 
+     Producto_Cuenta_Id INTEGER  NOT NULL 
+    ) 
+;
+
+ALTER TABLE Rel_Prod_Activ 
+    ADD CONSTRAINT Rel_Prod_Activ_PK PRIMARY KEY ( Activo_Id, Activo_Cuenta_Id, Producto_GTIN, Producto_Cuenta_Id ) ;
+
+CREATE TABLE Rel_Prod_Categ 
+    ( 
+     Categoria_Id        INTEGER  NOT NULL , 
+     Categoria_Cuenta_Id INTEGER  NOT NULL , 
+     Producto_GTIN       INTEGER  NOT NULL , 
+     Producto_Cuenta_Id  INTEGER  NOT NULL 
+    ) 
+;
+
+ALTER TABLE Rel_Prod_Categ 
+    ADD CONSTRAINT Rel_Prod_Categ_PK PRIMARY KEY ( Categoria_Id, Categoria_Cuenta_Id, Producto_GTIN, Producto_Cuenta_Id ) ;
+
+CREATE TABLE Relacionado 
+    ( 
+     Nombre              VARCHAR2 (100 CHAR)  NOT NULL , 
+     Sentido             VARCHAR2 (100 CHAR) , 
+     Producto_GTIN       INTEGER  NOT NULL , 
+     Producto_GTIN1      INTEGER  NOT NULL , 
+     Producto_Cuenta_Id  INTEGER  NOT NULL , 
+     Producto_Cuenta_Id1 INTEGER  NOT NULL 
+    ) 
+;
+
+ALTER TABLE Relacionado 
+    ADD CONSTRAINT Relacionado_PK PRIMARY KEY ( Producto_GTIN, Producto_Cuenta_Id, Producto_GTIN1, Producto_Cuenta_Id1 ) ;
+
+CREATE TABLE Usuario 
+    ( 
+     Id                INTEGER  NOT NULL , 
+     NombreUsuario     VARCHAR2 (100 CHAR)  NOT NULL , 
+     NombreCompleto    VARCHAR2 (100 CHAR)  NOT NULL , 
+     Avatar            VARCHAR2 (200 CHAR) , 
+     CorreoElectronico VARCHAR2 (150 CHAR)  NOT NULL , 
+     Telefono          INTEGER , 
+     Cuenta_Id         INTEGER  NOT NULL , 
+     Cuenta_Dueno        INTEGER 
+    ) 
+;
+CREATE UNIQUE INDEX Usuario__IDX ON Usuario 
+    ( 
+     Cuenta_Dueno   ASC 
+    ) 
+;
+
+ALTER TABLE Usuario 
+    ADD CONSTRAINT Usuario_PK PRIMARY KEY ( Id ) ;
+
+ALTER TABLE Activo 
+    ADD CONSTRAINT Activo_Cuenta_FK FOREIGN KEY 
+    ( 
+     Cuenta_Id
+    ) 
+    REFERENCES Cuenta 
+    ( 
+     Id
+    ) 
+;
+
+ALTER TABLE Atributos_Producto 
+    ADD CONSTRAINT Atributos_Producto_Atributo_FK FOREIGN KEY 
+    ( 
+     Atributo_Id
+    ) 
+    REFERENCES Atributo 
+    ( 
+     Id
+    ) 
+;
+
+ALTER TABLE Atributos_Producto 
+    ADD CONSTRAINT Atributos_Producto_Producto_FK FOREIGN KEY 
+    ( 
+     Producto_GTIN,
+     Producto_Cuenta_Id
+    ) 
+    REFERENCES Producto 
+    ( 
+     GTIN,
+     Cuenta_Id
+    ) 
+;
+
+ALTER TABLE Categoria_Activos 
+    ADD CONSTRAINT Categoria_Activos_Cuenta_FK FOREIGN KEY 
+    ( 
+     Cuenta_Id
+    ) 
+    REFERENCES Cuenta 
+    ( 
+     Id
+    ) 
+;
+
+ALTER TABLE Categoria 
+    ADD CONSTRAINT Categoria_Cuenta_FK FOREIGN KEY 
+    ( 
+     Cuenta_Id
+    ) 
+    REFERENCES Cuenta 
+    ( 
+     Id
+    ) 
+;
+
+ALTER TABLE Cuenta 
+    ADD CONSTRAINT Cuenta_Plan_FK FOREIGN KEY 
+    ( 
+     Plan_Id
+    ) 
+    REFERENCES Plan 
+    ( 
+     Id
+    ) 
+;
+
+ALTER TABLE Cuenta 
+    ADD CONSTRAINT Cuenta_Usuario_FK FOREIGN KEY 
+    ( 
+     Usuario_Id
+    ) 
+    REFERENCES Usuario 
+    ( 
+     Id
+    ) 
+;
+
+ALTER TABLE Producto 
+    ADD CONSTRAINT Producto_Cuenta_FK FOREIGN KEY 
+    ( 
+     Cuenta_Id
+    ) 
+    REFERENCES Cuenta 
+    ( 
+     Id
+    ) 
+;
+
+ALTER TABLE Rel_Activ_CategAct 
+    ADD CONSTRAINT Rel_Activ_CategAct_FK FOREIGN KEY 
+    ( 
+     Activo_Id,
+     Activo_Cuenta_Id
+    ) 
+    REFERENCES Activo 
+    ( 
+     Id,
+     Cuenta_Id
+    ) 
+;
+
+ALTER TABLE Rel_Activ_CategAct 
+    ADD CONSTRAINT Rel_Activ_Categoria_Activos_FK FOREIGN KEY 
+    ( 
+     Categoria_Activos_Id,
+     Categoria_Activos_Cuenta_Id
+    ) 
+    REFERENCES Categoria_Activos 
+    ( 
+     Id,
+     Cuenta_Id
+    ) 
+;
+
+ALTER TABLE Rel_Prod_Activ 
+    ADD CONSTRAINT Rel_Prod_Activ_Activo_FK FOREIGN KEY 
+    ( 
+     Activo_Id,
+     Activo_Cuenta_Id
+    ) 
+    REFERENCES Activo 
+    ( 
+     Id,
+     Cuenta_Id
+    ) 
+;
+
+ALTER TABLE Rel_Prod_Activ 
+    ADD CONSTRAINT Rel_Prod_Activ_Producto_FK FOREIGN KEY 
+    ( 
+     Producto_GTIN,
+     Producto_Cuenta_Id
+    ) 
+    REFERENCES Producto 
+    ( 
+     GTIN,
+     Cuenta_Id
+    ) 
+;
+
+ALTER TABLE Rel_Prod_Categ 
+    ADD CONSTRAINT Rel_Prod_Categ_Categoria_FK FOREIGN KEY 
+    ( 
+     Categoria_Id,
+     Categoria_Cuenta_Id
+    ) 
+    REFERENCES Categoria 
+    ( 
+     Id,
+     Cuenta_Id
+    ) 
+;
+
+ALTER TABLE Rel_Prod_Categ 
+    ADD CONSTRAINT Rel_Prod_Categ_Producto_FK FOREIGN KEY 
+    ( 
+     Producto_GTIN,
+     Producto_Cuenta_Id
+    ) 
+    REFERENCES Producto 
+    ( 
+     GTIN,
+     Cuenta_Id
+    ) 
+;
+
+ALTER TABLE Relacionado 
+    ADD CONSTRAINT Relacionado_Producto_FK FOREIGN KEY 
+    ( 
+     Producto_GTIN,
+     Producto_Cuenta_Id
+    ) 
+    REFERENCES Producto 
+    ( 
+     GTIN,
+     Cuenta_Id
+    ) 
+;
+
+ALTER TABLE Relacionado 
+    ADD CONSTRAINT Relacionado_Producto_FKv2 FOREIGN KEY 
+    ( 
+     Producto_GTIN1,
+     Producto_Cuenta_Id1
+    ) 
+    REFERENCES Producto 
+    ( 
+     GTIN,
+     Cuenta_Id
+    ) 
+;
+
+ALTER TABLE Usuario 
+    ADD CONSTRAINT Usuario_Cuenta_FK FOREIGN KEY 
+    ( 
+     Cuenta_Id
+    ) 
+    REFERENCES Cuenta 
+    ( 
+     Id
+    ) 
+;
+
+ALTER TABLE Usuario 
+    ADD CONSTRAINT Usuario_Cuenta_FKv2 FOREIGN KEY 
+    ( 
+     Cuenta_Dueno  
+    ) 
+    REFERENCES Cuenta 
+    ( 
+     Id
+    ) 
+;
+
+
+
+-- Informe de Resumen de Oracle SQL Developer Data Modeler: 
+-- 
+-- CREATE TABLE                            13
+-- CREATE INDEX                             2
+-- ALTER TABLE                             31
+-- CREATE VIEW                              0
+-- ALTER VIEW                               0
+-- CREATE PACKAGE                           0
+-- CREATE PACKAGE BODY                      0
+-- CREATE PROCEDURE                         0
+-- CREATE FUNCTION                          0
+-- CREATE TRIGGER                           0
+-- ALTER TRIGGER                            0
+-- CREATE COLLECTION TYPE                   0
+-- CREATE STRUCTURED TYPE                   0
+-- CREATE STRUCTURED TYPE BODY              0
+-- CREATE CLUSTER                           0
+-- CREATE CONTEXT                           0
+-- CREATE DATABASE                          0
+-- CREATE DIMENSION                         0
+-- CREATE DIRECTORY                         0
+-- CREATE DISK GROUP                        0
+-- CREATE ROLE                              0
+-- CREATE ROLLBACK SEGMENT                  0
+-- CREATE SEQUENCE                          0
+-- CREATE MATERIALIZED VIEW                 0
+-- CREATE MATERIALIZED VIEW LOG             0
+-- CREATE SYNONYM                           0
+-- CREATE TABLESPACE                        0
+-- CREATE USER                              0
+-- 
+-- DROP TABLESPACE                          0
+-- DROP DATABASE                            0
+-- 
+-- REDACTION POLICY                         0
+-- 
+-- ORDS DROP SCHEMA                         0
+-- ORDS ENABLE SCHEMA                       0
+-- ORDS ENABLE OBJECT                       0
+-- 
+-- ERRORS                                   0
+-- WARNINGS                                 0
+
+
+CREATE SEQUENCE SEQ_PRODUCTOS;
+
+-- COPIAR TRIGGER.
