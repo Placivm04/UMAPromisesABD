@@ -533,7 +533,58 @@ END tr_PRODUCTOS;
 
 -- CREAMOS LA TABLA EXTERNA DE PRODUCTOS
 
+--Añadimos a la ruta C:\app\alumnos\admin\orcl\dpdump , el fichero productos.csv
 
+--Cambiamos a system y ejecutamos el siguiente comando 
+
+create or replace directory directorio_ext as 'C:\app\alumnos\admin\orcl\dpdump'
+
+-- Siguiente paso 
+
+grant read, write on directory directorio_ext to PLYTIX;
+
+-- Cerramos sesion en system y nos conectamos a Plytix, rellenamos los campos vacios 
+
+CREATE TABLE productos_ext (
+  sku          VARCHAR2(20),
+  nombre       VARCHAR2(100),
+  textocorto   VARCHAR2(255),
+  creado       DATE,
+  cuenta_id    VARCHAR2(20)
+)
+ORGANIZATION EXTERNAL (
+  TYPE ORACLE_LOADER
+  DEFAULT DIRECTORY directorio_ext
+  ACCESS PARAMETERS (
+    RECORDS DELIMITED BY NEWLINE
+    SKIP 1
+    CHARACTERSET UTF8
+    FIELDS TERMINATED BY ';'
+    OPTIONALLY ENCLOSED BY '"'
+    MISSING FIELD VALUES ARE NULL
+    (
+      sku          CHAR(20),
+      nombre       CHAR(100),
+      textocorto   CHAR(255),
+      creado       CHAR(10) DATE_FORMAT DATE MASK "dd/mm/yyyy",
+      cuenta_id    CHAR(20)
+    )
+  )
+  LOCATION ('productos.csv')
+);
+
+
+
+-- Apartado 8, se insertan los datos de la tabla externa de producto a la tabla producto
+
+INSERT INTO PRODUCTO (SKU, NOMBRE, TEXTOCORTO, CREADO, CUENTA_ID)
+SELECT
+  sku,
+  nombre,
+  textocorto,
+  TO_DATE(creado, 'DD/MM/YYYY'),
+  cuenta_id
+FROM productos_ext;
 
 
 -- INSERTAR DATOS
@@ -954,4 +1005,51 @@ INSERT INTO PRODUCTO (SKU, NOMBRE, TEXTOCORTO, CREADO, CUENTA_ID) VALUES ('SKU_0
 INSERT INTO PRODUCTO (SKU, NOMBRE, TEXTOCORTO, CREADO, CUENTA_ID) VALUES ('SKU_000100','4K TV','High-resolution digital camera.',to_date('28/08/2024', 'DD/MM/YYYY'),28);
 
 
--- COPIAR TRIGGER.
+-- INDICES
+
+-- Ya tenemos creada la clave primaria de la tabla USUARIO
+-- Sentencia: ALTER TABLE Usuario ADD CONSTRAINT Usuario_PK...
+
+-- Crear indices sobre los atributos mas comunes de la tabla Usuario
+
+-- Los indices deben residir en TS_INDICES
+
+-- Al menos uno de los índices debe ser sobre una función.
+
+
+-- CREACION DE INDICES ADICIONALES:
+
+CREATE INDEX Usuario_NombreUsuario_IDX ON Usuario(NombreUsuario) TABLESPACE TS_INDICES;
+
+CREATE INDEX Usuario_NombreCompletoUpper_IDX ON Usuario(UPPER(NombreCompleto)) TABLESPACE TS_INDICES;
+
+CREATE INDEX Usuario_CorreoTelefono_IDX ON Usuario(CorreoElectronico, Telefono) TABLESPACE TS_INDICES;
+
+
+-- CONSULTA A USER_INDEXES:
+
+SELECT index_name, index_type, tablespace_name FROM USER_INDEXES WHERE table_name = 'USUARIO';
+
+-- CONSULTA DEL TABLESPACE DE LA TABLA E ÍNDICES:
+
+SELECT table_name, tablespace_name FROM USER_TABLES WHERE table_name = 'USUARIO';
+
+-- CREACIÓN DE ÍNDICE BITMAP:
+-- El BITMAP debe ser sobre el atributo que indica la cuenta en la tabla USUARIO
+
+CREATE BITMAP INDEX Usuario_CuentaId_BIDX ON Usuario(Cuenta_Id) TABLESPACE TS_INDICES;
+--                                                       /
+--                                                Indica la cuenta
+
+-- VERIFICACIÓN DEL ÍNDICE BITMAP:
+
+SELECT index_name, index_type FROM USER_INDEXES WHERE table_name = 'USUARIO' AND index_name = 'USUARIO_CUENTAID_BIDX';
+
+
+-- INDICES ADICIONALES SOBRE FUNCIONES:
+
+-- Para búsquedas case-insensitive de nombres de usuario, nombre en minúscula
+CREATE INDEX Usuario_NombreUsuarioLower_IDX ON Usuario(LOWER(NombreUsuario)) TABLESPACE TS_INDICES;
+
+CREATE INDEX Usuario_DominioCorreoElectronico_IDX ON Usuario(SUBSTR(CorreoElectronico, INSTR(CorreoElectronico, '@') + 1)) TABLESPACE TS_INDICES;
+
