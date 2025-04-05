@@ -15,9 +15,6 @@ CREATE INDEX Usuario_NombreUsuario_IDX ON Usuario(NombreUsuario) TABLESPACE TS_I
 
 CREATE INDEX Usuario_NombreCompletoUpper_IDX ON Usuario(UPPER(NombreCompleto)) TABLESPACE TS_INDICES;
 
-CREATE INDEX Usuario_CorreoTelefono_IDX ON Usuario(CorreoElectronico, Telefono) TABLESPACE TS_INDICES;
-
-
 -- CONSULTA A USER_INDEXES:
 
 SELECT index_name, index_type, tablespace_name FROM USER_INDEXES WHERE table_name = 'USUARIO';
@@ -43,7 +40,6 @@ SELECT index_name, index_type FROM USER_INDEXES WHERE table_name = 'USUARIO' AND
 -- Para búsquedas case-insensitive de nombres de usuario, nombre en minúscula
 CREATE INDEX Usuario_NombreUsuarioLower_IDX ON Usuario(LOWER(NombreUsuario)) TABLESPACE TS_INDICES;
 
-CREATE INDEX Usuario_DominioCorreoElectronico_IDX ON Usuario(SUBSTR(CorreoElectronico, INSTR(CorreoElectronico, '@') + 1)) TABLESPACE TS_INDICES;
 
 
 
