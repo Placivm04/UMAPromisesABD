@@ -1049,3 +1049,24 @@ SELECT index_name, index_type FROM USER_INDEXES WHERE table_name = 'USUARIO' AND
 -- Para búsquedas case-insensitive de nombres de usuario, nombre en minúscula
 CREATE INDEX Usuario_NombreUsuarioLower_IDX ON Usuario(LOWER(NombreUsuario)) TABLESPACE TS_INDICES;
 
+-- VISTA MATERIALIZADA
+-- Desde system ejecutamos
+
+GRANT CREATE MATERIALIZED VIEW TO PLYTIX;
+GRANT CREATE JOB TO PLYTIX;
+
+-- Desde PLYTIX
+
+CREATE MATERIALIZED VIEW vm_productos
+BUILD IMMEDIATE
+REFRESH COMPLETE
+START WITH TO_DATE(TO_CHAR(SYSDATE, 'DD-MM-YYYY') || ' 00:00:00', 'DD-MM-YYYY HH24:MI:SS')
+NEXT SYSDATE + 1
+AS
+SELECT * FROM producto;
+
+
+-- SINONIMOS
+
+-- desde system 
+CREATE PUBLIC SYNONYM S_PRODUCTOS FOR PLYTIX.VM_PRODUCTOS;
