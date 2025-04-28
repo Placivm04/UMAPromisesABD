@@ -1141,6 +1141,19 @@ INSERT INTO Usuario (id, nombrecompleto, telefono, correoelectronico, Nombreusua
 (130, 'Ana Vergara Viñas', '+34 811 979 356', 'busquetseugenio@example.net', 'busquetseugenio', 23);
 
 
+/* SCRIPT AUXILIAR PARA INSERTAR TODOS LOS DATOS DE UNO  
+
+-- Para MySQL
+LOAD DATA INFILE 'usuarios.csv'
+INTO TABLE Usuario
+FIELDS TERMINATED BY ';'
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(id, nombrecompleto, telefono, correoelectronico, Nombreusuario, Cuenta_id);
+
+*/
+
 -- INDICES
 
 -- Ya tenemos creada la clave primaria de la tabla USUARIO
