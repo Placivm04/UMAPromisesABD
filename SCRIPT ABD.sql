@@ -230,7 +230,7 @@ CREATE TABLE Relacionado
 ;
 
 ALTER TABLE Relacionado 
-    ADD CONSTRAINT Relacionado_PK PRIMARY KEY ( Producto_GTIN, Producto_Cuenta_Id, Producto_GTIN1, Producto_Cuenta_Id1 )  USING INDEX TABLESPACE TS_INDICES ;
+    ADD CONSTRAINT Relacionado_PK PRIMARY KEY ( Producto_GTIN, Producto_Cuenta_Id)  USING INDEX TABLESPACE TS_INDICES ;
 
 CREATE TABLE Usuario 
     ( 
