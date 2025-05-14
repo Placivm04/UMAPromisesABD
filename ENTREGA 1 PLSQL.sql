@@ -53,37 +53,41 @@ CREATE OR REPLACE PACKAGE BODY PKG_ADMIN_PRODUCTOS AS
     FUNCTION F_OBTENER_PLAN_CUENTA (p_cuenta_id IN CUENTA.ID%TYPE) 
         RETURN PLAN%ROWTYPE AS
         v_plan PLAN%ROWTYPE;
+        v_cuenta NUMBER;
+        v_plan_cuenta CUENTA.PLAN_ID%TYPE;
 
     BEGIN
         -- LOGICA PARA OBTENER EL PLAN DE UNA CUENTA
 
-        SELECT COUNT(*) INTO V_CUENTA FROM CUENTA WHERE ID = p_cuenta_id FOR UPDATE;
-        IF V_CUENTA = 0 THEN
+        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id FOR UPDATE;
+        IF v_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no existe la cuenta
         END IF;
 
-        SELECT PLAN_ID INTO PLAN_CUENTA FROM CUENTA WHERE ID = p_cuenta_id;
+        SELECT PLAN_ID INTO v_plan_cuenta FROM CUENTA WHERE ID = p_cuenta_id;
 
-        IF PLAN_CUENTA IS NULL THEN
+        IF v_plan_cuenta IS NULL THEN
             RAISE EXCEPTION_PLAN_NO_ASIGNADO; -- Lanza la excepción personalizada si no hay un plan asignado
         END IF;
 
-        SELECT * INTO v_plan FROM PLAN WHERE ID = PLAN_CUENTA;
+        SELECT * INTO v_plan FROM PLAN WHERE ID = v_plan_cuenta FOR UPDATE;    
 
         RETURN v_plan;
+
     -- CAPTURA LAS EXCEPCIONES QUE PUEDAN OCURRIR Y NO HAYAMOS CONTROLADO PREVIAMENTE
+
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el plan para la cuenta con ID: ' || p_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
         WHEN EXCEPTION_PLAN_NO_ASIGNADO THEN
             DBMS_OUTPUT.PUT_LINE('No hay un plan asignado para la cuenta con ID: ' || p_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
     END F_OBTENER_PLAN_CUENTA;
 
@@ -92,25 +96,26 @@ CREATE OR REPLACE PACKAGE BODY PKG_ADMIN_PRODUCTOS AS
     FUNCTION F_CONTAR_PRODUCTOS_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE) 
         RETURN NUMBER AS
         v_num_productos NUMBER;
+        v_cuenta NUMBER;
 
     BEGIN
 
         -- VERIFICAMOS SI LA CUENTA EXISTE
-        SELECT COUNT(*) INTO V_CUENTA FROM CUENTA WHERE ID = p_cuenta_id FOR UPDATE;
+        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id FOR UPDATE;
 
-        IF V_CUENTA = 0 THEN
+        IF v_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
         END IF;
-        SELECT COUNT(*) INTO v_num_productos FROM PRODICTO WHERE CUENTA_ID = p_cuenta_id;
+        SELECT COUNT(*) INTO v_num_productos FROM PRODUCTO WHERE CUENTA_ID = p_cuenta_id;
     
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró la cuenta con ID: ' || p_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
     END F_CONTAR_PRODUCTOS_CUENTA;
 
@@ -120,19 +125,26 @@ CREATE OR REPLACE PACKAGE BODY PKG_ADMIN_PRODUCTOS AS
         RETURN BOOLEAN IS
 
             CURSOR C_ATRIBUTO IS SELECT ID FROM ATRIBUTO;
+
+            -- Variables declaradas para almacenar los resultados de las consultas
+
+            v_cuenta NUMBER; -- Para contar si existe la cuenta
+            v_producto_cuenta NUMBER; -- Para contar si existe el producto
+            v_valor ATRIBUTOS_PRODUCTO.VALOR%TYPE; -- Para almacenar el valor del atributo
+
     BEGIN
 
         -- VERIFICAMOS SI LA CUENTA EXISTE
-        SELECT COUNT(*) INTO V_CUENTA FROM CUENTA WHERE ID = p_cuenta_id FOR UPDATE;
+        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id FOR UPDATE;
 
-        IF V_CUENTA = 0 THEN
+        IF v_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay una cuenta asignada
         END IF;
 
         -- VERIFICAMOS SI EL PRODUCTO EXISTE
-        SELECT COUNT(*) INTO PRODUCTO_CUENTA FROM PRODUCTO WHERE GTIN = p_producto_gtin AND CUENTA_ID = p_cuenta_id FOR UPDATE;
+        SELECT COUNT(*) INTO v_producto_cuenta FROM PRODUCTO WHERE GTIN = p_producto_gtin AND CUENTA_ID = p_cuenta_id FOR UPDATE;
 
-        IF PRODUCTO_CUENTA = 0 THEN
+        IF v_producto_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un producto asignado
         END IF;
 
@@ -140,9 +152,9 @@ CREATE OR REPLACE PACKAGE BODY PKG_ADMIN_PRODUCTOS AS
         FOR R_ATRIBUTO IN C_ATRIBUTO LOOP
             
             -- COMPROBAMOS SI EXISTE UN VALOR DE ESE ATRIBUTO PARA UN PRODUCTO DADO
-            SELECT VALOR INTO V_VALOR FROM ATRIBUTOS_PRODUCTO WHERE PRODUCTO_GTIN = p_producto_gtin AND Atributo_Id = R_ATRIBUTO;
+            SELECT VALOR INTO v_valor FROM ATRIBUTOS_PRODUCTO WHERE PRODUCTO_GTIN = p_producto_gtin AND Atributo_Id = R_ATRIBUTO;
 
-            IF V_VALOR IS NULL THEN
+            IF v_valor IS NULL THEN
                 DBMS_OUTPUT.PUT_LINE('El producto ' || p_producto_gtin || ' no tiene el atributo ' || R_ATRIBUTO.ID);
                 RETURN FALSE; -- Si no existe el valor, retornamos falso
             END IF;
@@ -153,11 +165,11 @@ CREATE OR REPLACE PACKAGE BODY PKG_ADMIN_PRODUCTOS AS
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el producto para la cuenta con ID: ' || p_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
     END;
 
@@ -181,11 +193,11 @@ CREATE OR REPLACE PACKAGE BODY PKG_ADMIN_PRODUCTOS AS
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el producto para la cuenta con ID: ' || p_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
     END F_VALIDAR_ATRIBUTOS_PRODUCTO;
 
@@ -234,11 +246,11 @@ CREATE OR REPLACE PACKAGE BODY PKG_ADMIN_PRODUCTOS AS
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el producto para la cuenta con ID: ' || p_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
     END P_ACTUALIZAR_NOMBRE_PRODUCTO;
 
@@ -284,15 +296,15 @@ CREATE OR REPLACE PACKAGE BODY PKG_ADMIN_PRODUCTOS AS
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el producto o activo para la cuenta con ID: ' || p_producto_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
         WHEN EXCEPTION_ASOCIACION_DUPLICADA THEN
             DBMS_OUTPUT.PUT_LINE('Ya existe una asociación entre el producto ' || p_producto_gtin || ' y el activo ' || p_activo_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
     END P_ASOCIAR_ACTIVO_A_PRODUCTO;
 
@@ -332,11 +344,11 @@ CREATE OR REPLACE PACKAGE BODY PKG_ADMIN_PRODUCTOS AS
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el producto para la cuenta con ID: ' || p_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
     END P_ELIMINAR_PRODUCTO_Y_ASOCIACIONES;
 
@@ -386,11 +398,11 @@ CREATE OR REPLACE PACKAGE BODY PKG_ADMIN_PRODUCTOS AS
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el producto para la cuenta con ID: ' || p_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQL_ERRM, 1, 500));
+            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
     END P_ACTUALIZAR_PRODUCTOS;
 
