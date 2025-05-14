@@ -225,9 +225,7 @@ CREATE TABLE Relacionado
      Nombre              VARCHAR2 (100 CHAR)  NOT NULL , 
      Sentido             VARCHAR2 (100 CHAR) , 
      Producto_GTIN       INTEGER  NOT NULL , 
-     Producto_GTIN1      INTEGER  NOT NULL , 
-     Producto_Cuenta_Id  INTEGER  NOT NULL , 
-     Producto_Cuenta_Id1 INTEGER  NOT NULL 
+     Producto_Cuenta_Id  INTEGER  NOT NULL 
     ) 
 ;
 
