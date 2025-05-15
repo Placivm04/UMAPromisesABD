@@ -379,7 +379,6 @@ CREATE OR REPLACE PACKAGE BODY PKG_ADMIN_PRODUCTOS AS
             IF NUM_PRODUCTOS = 0 THEN
                 P_ELIMINAR_PRODUCTO_Y_ASOCIACIONES(R_PRODUCTO.GTIN, p_cuenta_id);
             END IF;
-            
         END LOOP;
             
 
