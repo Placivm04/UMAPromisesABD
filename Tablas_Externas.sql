@@ -19,6 +19,7 @@ CREATE TABLE productos_ext (
   creado       DATE,
   cuenta_id    VARCHAR2(20)
 )
+
 ORGANIZATION EXTERNAL (
   TYPE ORACLE_LOADER
   DEFAULT DIRECTORY directorio_ext
