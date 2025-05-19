@@ -110,4 +110,139 @@ CREATE OR REPLACE PACKAGE BODY PKG_ADMIN_PRODUCTOS_AVANZADO AS
 
 END PKG_ADMIN_PRODUCTOS_AVANZADO;
 /
-    
+
+-- PROCEDIMIENTOS REQUERIDOS
+CREATE OR REPLACE PROCEDURE P_MIGRAR_PRODUCTOS_A_CATEGORIA(
+    p_cuenta_id            IN CUENTA.ID%TYPE,
+    p_categoria_origen_id  IN CATEGORIA.ID%TYPE,
+    p_categoria_destino_id IN CATEGORIA.ID%TYPE
+) IS
+    -- Cursor para recorrer los productos de la categoría de origen
+    CURSOR c_productos IS
+        SELECT Producto_GTIN, Producto_Cuenta_Id
+        FROM Rel_Prod_Categ
+        WHERE Categoria_Id = p_categoria_origen_id
+            AND Categoria_Cuenta_Id = p_cuenta_id
+            FOR UPDATE; -- Bloquea esas filas para que nadie más las modifique durante la operación
+
+BEGIN 
+    -- Verificar existencia de cuenta
+    DECLARE
+        v_dummy INTEGER; -- Se usa como contenedor temporal para hacer consultas de verificación
+    BEGIN
+        SELECT 1 INTO v_dummy FROM Cuenta WHERE Id = p_cuenta_id;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RAISE_APPLICATION_ERROR(-20001, 'La cuenta no existe.');
+    END;
+
+    -- Verificar existencia y pertenencia de categoría de origen
+    BEGIN
+        SELECT 1 INTO v_dummy
+        FROM Categoria
+        WHERE Id = p_categoria_origen_id
+          AND Cuenta_Id = p_cuenta_id;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RAISE_APPLICATION_ERROR(-20002, 'La categoría de origen no existe o no pertenece a la cuenta.');
+    END;
+
+    -- Verificar existencia y pertenencia de categoría de destino
+    BEGIN
+        SELECT 1 INTO v_dummy
+        FROM Categoria
+        WHERE Id = p_categoria_destino_id
+          AND Cuenta_Id = p_cuenta_id;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RAISE_APPLICATION_ERROR(-20003, 'La categoría de destino no existe o no pertenece a la cuenta.');
+    END;
+
+    -- Recorrer productos y actualizar categoría
+    FOR r_producto IN c_productos LOOP
+        UPDATE Rel_Prod_Categ
+        SET Categoria_Id = p_categoria_destino_id
+        WHERE CURRENT OF c_productos;
+    END LOOP;
+
+    COMMIT;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        RAISE;
+
+END;
+/
+
+CREATE OR REPLACE PROCEDURE P_REPLICAR_ATRIBUTOS(
+    p_cuenta_id              IN CUENTA.ID%TYPE,
+    p_producto_gtin_origen   IN PRODUCTO.GTIN%TYPE,
+    p_producto_gtin_destino  IN PRODUCTO.GTIN%TYPE
+) IS
+    -- Variable dummy para validaciones
+    v_dummy INTEGER;
+
+    -- Cursor para obtener los atributos del producto origen
+    CURSOR c_atributos_origen IS
+        SELECT atributo_id, valor
+        FROM Atributos_Producto
+        WHERE producto_gtin = p_producto_gtin_origen
+          AND producto_cuenta_id = p_cuenta_id
+        FOR UPDATE;
+
+BEGIN
+    -- Verificar que el producto origen existe
+    SELECT 1 INTO v_dummy
+    FROM Producto
+    WHERE GTIN = p_producto_gtin_origen
+      AND Cuenta_Id = p_cuenta_id;
+
+    -- Verificar que el producto destino existe
+    SELECT 1 INTO v_dummy
+    FROM Producto
+    WHERE GTIN = p_producto_gtin_destino
+      AND Cuenta_Id = p_cuenta_id;
+
+    -- Procesar cada atributo del producto origen
+    FOR r_atributo IN c_atributos_origen LOOP
+        BEGIN
+            -- Verificar si ya existe el atributo para el producto destino
+            SELECT 1 INTO v_dummy
+            FROM Atributos_Producto
+            WHERE producto_gtin = p_producto_gtin_destino
+              AND producto_cuenta_id = p_cuenta_id
+              AND atributo_id = r_atributo.atributo_id;
+
+            -- Si existe, actualizar
+            UPDATE Atributos_Producto
+            SET valor = r_atributo.valor
+            WHERE producto_gtin = p_producto_gtin_destino
+              AND producto_cuenta_id = p_cuenta_id
+              AND atributo_id = r_atributo.atributo_id;
+
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                -- Si no existe, insertar
+                INSERT INTO Atributos_Producto (
+                    valor, producto_gtin, producto_cuenta_id, atributo_id
+                ) VALUES (
+                    r_atributo.valor, p_producto_gtin_destino, p_cuenta_id, r_atributo.atributo_id
+                );
+        END;
+    END LOOP;
+
+    -- Confirmar transacción
+    COMMIT;
+
+-- Manejo de errores específicos
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        ROLLBACK;
+        RAISE_APPLICATION_ERROR(-20010, 'Producto origen o destino no existe');
+
+    WHEN OTHERS THEN
+        ROLLBACK;
+        RAISE_APPLICATION_ERROR(-20011, 'Error inesperado al replicar atributos: ' || SQLERRM);
+END;
+/
