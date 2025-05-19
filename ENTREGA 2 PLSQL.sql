@@ -122,8 +122,8 @@ END PKG_ADMIN_PRODUCTOS_AVANZADO;
 
 BEGIN
   DBMS_SCHEDULER.CREATE_JOB (
-    job_name        => 'J_LIMPIA_TRAZA',
-    job_type        => 'PLSQL_BLOCK',
+    job_name        => 'J_LIMPIA_TRAZA', -- Nombre identificador del job
+    job_type        => 'PLSQL_BLOCK', -- Tipo de job, en este caso un bloque PL/SQL
     job_action      => 'BEGIN
                           -- Eliminar registros con más de 1 año de antigüedad
                           DELETE FROM TRAZA 
@@ -133,19 +133,23 @@ BEGIN
                           -- DELETE FROM TRAZA 
                           -- WHERE FECHA < SYSDATE - (1/1440); -- 1 minuto
                           
-                          COMMIT;
+                          COMMIT; -- Confirmamos los cambios
+
+                          -- Muestra el número de registros eliminados
                           DBMS_OUTPUT.PUT_LINE(''Registros eliminados: '' || SQL%ROWCOUNT);
                        EXCEPTION
                           WHEN OTHERS THEN
+
+                              -- Manejo de errores (muestamos el error y lo registramos en TRAZA)
                              DBMS_OUTPUT.PUT_LINE(''Error en J_LIMPIA_TRAZA: '' || SQLERRM);
                              INSERT INTO TRAZA 
                              VALUES (SYSDATE, USER, ''J_LIMPIA_TRAZA'', 
                                      SQLCODE || '' - '' || SUBSTR(SQLERRM, 1, 200));
                              COMMIT;
                        END;',
-    start_date      => SYSTIMESTAMP,
+    start_date      => SYSTIMESTAMP, -- Fecha y hora de inicio del job (ahora mismo)
     repeat_interval => 'FREQ=DAILY; BYHOUR=2', -- Ejecución diaria a las 2 AM
-    enabled         => TRUE,
+    enabled         => TRUE, -- Job activadoautomáticamente
     comments        => 'Job para limpiar registros antiguos de la tabla TRAZA');
 END;
 /
@@ -157,24 +161,30 @@ END;
 
 BEGIN
   DBMS_SCHEDULER.CREATE_JOB (
-    job_name        => 'J_ACTUALIZA_PRODUCTOS',
-    job_type        => 'PLSQL_BLOCK',
+    job_name        => 'J_ACTUALIZA_PRODUCTOS', -- Nombre identificador del job
+    job_type        => 'PLSQL_BLOCK', -- Tipo de job, en este caso un bloque PL/SQL
     job_action      => 'DECLARE
+
+                          -- Cursor para seleccionar productos externos válidos
                           CURSOR c_productos_ext IS 
                             SELECT 
-                              TO_NUMBER(REPLACE(sku, ''P'', '''')) AS gtin,
+                              TO_NUMBER(REPLACE(sku, ''P'', '''')) AS gtin, -- Convertir SKU a número (GTIN)
                               sku,
                               nombre,
                               textocorto,
                               creado,
-                              TO_NUMBER(cuenta_id) AS cuenta_id
+                              TO_NUMBER(cuenta_id) AS cuenta_id -- Convertir cuenta_id a número
                             FROM productos_ext
-                            WHERE REGEXP_LIKE(cuenta_id, ''^[0-9]+$'');
+                            WHERE REGEXP_LIKE(cuenta_id, ''^[0-9]+$''); -- Solo IDs numéricos válidos
                             
+                          -- Variables para contar productos actualizados e insertados
+
                           v_contador_actualizados NUMBER := 0;
                           v_contador_insertados NUMBER := 0;
                           v_total NUMBER := 0;
+
                        BEGIN
+
                           -- Obtener total de productos externos para registro
                           SELECT COUNT(*) INTO v_total FROM productos_ext
                           WHERE REGEXP_LIKE(cuenta_id, ''^[0-9]+$'');
@@ -182,18 +192,25 @@ BEGIN
                           DBMS_OUTPUT.PUT_LINE(''Iniciando actualización de '' || v_total || '' productos'');
                           
                           -- Procesar cada producto externo
+
                           FOR r_prod IN c_productos_ext LOOP
+
                              BEGIN
+
                                 -- Verificar si el producto ya existe
                                 DECLARE
                                    v_existe NUMBER := 0;
+
                                 BEGIN
+
+                                    -- Comprobar si el producto ya existe en la tabla Producto
                                    SELECT COUNT(*) INTO v_existe
                                    FROM Producto
                                    WHERE GTIN = r_prod.gtin
                                    AND Cuenta_Id = r_prod.cuenta_id;
                                    
                                    IF v_existe > 0 THEN
+
                                       -- Actualizar producto existente
                                       UPDATE Producto SET
                                         SKU = r_prod.sku,
@@ -203,8 +220,11 @@ BEGIN
                                       WHERE GTIN = r_prod.gtin
                                       AND Cuenta_Id = r_prod.cuenta_id;
                                       
+                                      -- Incrementar contador de actualizaciones
                                       v_contador_actualizados := v_contador_actualizados + 1;
+
                                    ELSE
+
                                       -- Insertar nuevo producto
                                       INSERT INTO Producto (
                                         GTIN,
@@ -218,12 +238,15 @@ BEGIN
                                         r_prod.sku,
                                         r_prod.nombre,
                                         r_prod.textocorto,
-                                        NVL(r_prod.creado, SYSDATE),
+                                        NVL(r_prod.creado, SYSDATE), -- Usar fecha de creación o actual
                                         r_prod.cuenta_id
                                       );
                                       
+                                      -- Incrementar contador de insertados
                                       v_contador_insertados := v_contador_insertados + 1;
+
                                    END IF;
+
                                 END;
                                 
                                 -- Commit cada 100 registros para evitar bloques largos
@@ -231,35 +254,50 @@ BEGIN
                                    COMMIT;
                                    DBMS_OUTPUT.PUT_LINE(''Procesados '' || (v_contador_actualizados + v_contador_insertados) || '' de '' || v_total || '' productos'');
                                 END IF;
+
                              EXCEPTION
+
                                 WHEN OTHERS THEN
+
+                                    -- Manejo de errores (mostramos el error y lo registramos en TRAZA)
                                    DBMS_OUTPUT.PUT_LINE(''Error procesando producto SKU: '' || r_prod.sku || '', Cuenta: '' || r_prod.cuenta_id || '': '' || SQLERRM);
                                    INSERT INTO TRAZA 
                                    VALUES (SYSDATE, USER, ''J_ACTUALIZA_PRODUCTOS'', 
                                            ''Producto '' || r_prod.sku || '' (Cuenta '' || r_prod.cuenta_id || ''): '' || SQLCODE || '' - '' || SUBSTR(SQLERRM, 1, 200));
+                             
                              END;
+                          
                           END LOOP;
                           
-                          COMMIT;
+                          COMMIT; -- Confirmar cambios finales
+
+                          -- Mensaje de finalización
                           DBMS_OUTPUT.PUT_LINE(''Actualización completada. Productos actualizados: '' || v_contador_actualizados || '', insertados: '' || v_contador_insertados);
                           
                           -- Registrar éxito en TRAZA
                           INSERT INTO TRAZA 
                           VALUES (SYSDATE, USER, ''J_ACTUALIZA_PRODUCTOS'', 
                                   ''Actualización completada. Actualizados: '' || v_contador_actualizados || '', Insertados: '' || v_contador_insertados || ''/'' || v_total);
+                          
                           COMMIT;
+
                        EXCEPTION
+
                           WHEN OTHERS THEN
+                              -- Manejo de errores (mostramos el error y lo registramos en TRAZA)
                              DBMS_OUTPUT.PUT_LINE(''Error general en J_ACTUALIZA_PRODUCTOS: '' || SQLERRM);
                              INSERT INTO TRAZA 
                              VALUES (SYSDATE, USER, ''J_ACTUALIZA_PRODUCTOS'', 
                                      SQLCODE || '' - '' || SUBSTR(SQLERRM, 1, 200));
+
                              COMMIT;
-                             RAISE;
+
+                             RAISE; -- Re-lanzar la excepción para que el job falle
+                       
                        END;',
     start_date      => SYSTIMESTAMP,
     repeat_interval => 'FREQ=HOURLY; INTERVAL=4', -- Ejecución cada 4 horas
-    enabled         => TRUE,
+    enabled         => TRUE, -- Job activado automáticamente
     comments        => 'Job para actualizar productos desde la tabla externa productos_ext');
 END;
 /
@@ -270,42 +308,44 @@ END;
 -- PROCEDIMIENTOS DE PRUEBA 
 -- Comprobamos que funcionan correctamente los JOBS
 
+-- Crea o reemplaza el procedimiento TEST_JOBS_ADMIN_PRODUCTOS
 CREATE OR REPLACE PROCEDURE TEST_JOBS_ADMIN_PRODUCTOS AS
 BEGIN
+
   -- Preparar datos de prueba en productos_ext (simulado)
   DBMS_OUTPUT.PUT_LINE('=== PREPARANDO DATOS DE PRUEBA ===');
   
   -- Ejecutar job de limpieza
   DBMS_OUTPUT.PUT_LINE('=== EJECUTANDO J_LIMPIA_TRAZA ===');
-  DBMS_SCHEDULER.RUN_JOB('J_LIMPIA_TRAZA');
+  DBMS_SCHEDULER.RUN_JOB('J_LIMPIA_TRAZA'); -- Ejecuta manualmente el job que limpia registros antiguos de TRAZA
   
   -- Ejecutar job de actualización de productos
   DBMS_OUTPUT.PUT_LINE('=== EJECUTANDO J_ACTUALIZA_PRODUCTOS ===');
-  DBMS_SCHEDULER.RUN_JOB('J_ACTUALIZA_PRODUCTOS');
+  DBMS_SCHEDULER.RUN_JOB('J_ACTUALIZA_PRODUCTOS'); -- Ejecuta manualmente el job que actualiza productos desde productos_ext
   
   -- Verificar resultados
   DBMS_OUTPUT.PUT_LINE('=== RESULTADOS ===');
   DBMS_OUTPUT.PUT_LINE('Registros en Producto: ' || 
-    (SELECT COUNT(*) FROM Producto));
+    (SELECT COUNT(*) FROM Producto)); -- Muestra el número de registros en la tabla Producto
   DBMS_OUTPUT.PUT_LINE('Registros en productos_ext: ' || 
-    (SELECT COUNT(*) FROM productos_ext WHERE REGEXP_LIKE(cuenta_id, '^[0-9]+$')));
+    (SELECT COUNT(*) FROM productos_ext WHERE REGEXP_LIKE(cuenta_id, '^[0-9]+$'))); -- Muestra el número de registros en productos_ext con cuenta_id válido
   
   -- Mostrar últimos registros de TRAZA
   DBMS_OUTPUT.PUT_LINE('=== ÚLTIMOS EVENTOS EN TRAZA ===');
   FOR t IN (SELECT * FROM (
               SELECT fecha, modulo, mensaje 
-              FROM TRAZA 
-              ORDER BY fecha DESC) 
-            WHERE ROWNUM <= 5) LOOP
+              FROM TRAZA -- Consulta que obtiene los 5 registros más recientes de TRAZA
+              ORDER BY fecha DESC) -- Ordenados por fecha descendente
+            WHERE ROWNUM <= 5) LOOP 
     DBMS_OUTPUT.PUT_LINE(TO_CHAR(t.fecha, 'DD/MM/YY HH24:MI') || ' - ' || 
-                         t.modulo || ': ' || t.mensaje);
+                         t.modulo || ': ' || t.mensaje); -- Muestra la fecha, módulo y mensaje (cada registro de TRAZA)
   END LOOP;
 EXCEPTION
-  WHEN OTHERS THEN
-    DBMS_OUTPUT.PUT_LINE('Error en TEST_JOBS_ADMIN_PRODUCTOS: ' || SQLERRM);
-    INSERT INTO TRAZA VALUES(SYSDATE, USER, 'TEST_JOBS', SQLERRM);
-    COMMIT;
-    RAISE;
+  WHEN OTHERS THEN -- Captura cualquier excepción no manejada específicamente
+    DBMS_OUTPUT.PUT_LINE('Error en TEST_JOBS_ADMIN_PRODUCTOS: ' || SQLERRM); -- Muestra el error por pantalla
+    INSERT INTO TRAZA VALUES(SYSDATE, USER, 'TEST_JOBS', SQLERRM); -- Registra el error en la tabla TRAZA
+    COMMIT; -- COnfirma la transacción
+    RAISE; -- Relanza la excepción para notificación externa
 END TEST_JOBS_ADMIN_PRODUCTOS;
 /
 
