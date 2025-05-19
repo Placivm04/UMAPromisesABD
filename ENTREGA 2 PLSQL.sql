@@ -154,7 +154,9 @@ BEGIN
 END;
 /
 
+
 ----------------------------------------------------------------------------------------------------------------
+
 
 -- J_ACTUALIZA_PRODUCTOS. Actualiza desde la tabla de productos externos los productos
 -- de la tabla Productos para todas las cuentas de la base de datos llamando a P_ACTUALIZAR_PRODUCTOS.
