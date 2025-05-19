@@ -86,7 +86,7 @@ EXCEPTION
 END F_ES_USUARIO_CUENTA;
 
 
--- 1
+-- 1 -
 
     FUNCTION F_OBTENER_PLAN_CUENTA (p_cuenta_id IN CUENTA.ID%TYPE) 
         RETURN PLAN%ROWTYPE AS
@@ -128,8 +128,7 @@ END F_ES_USUARIO_CUENTA;
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 
--- 2
-    -- IMPLEMENTACIONES ADICIONALES DE LAS FUNCIONES Y PROCEDIMIENTOS DEL PAQUETE
+-- 2 -
     FUNCTION F_CONTAR_PRODUCTOS_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE) 
         RETURN NUMBER AS
         v_num_productos NUMBER;
@@ -159,7 +158,7 @@ END F_ES_USUARIO_CUENTA;
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 
--- 3
+-- 3 -
 FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
         p_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE) 
         RETURN NUMBER IS
@@ -214,7 +213,7 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 
--- 4
+-- 4 -
 
     FUNCTION F_NUM_CATEGORIAS_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE) 
         RETURN NUMBER AS
@@ -224,7 +223,7 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
     BEGIN
 
         -- VERIFICAMOS SI LA CUENTA EXISTE
-        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id FOR UPDATE;
+        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id;
 
         IF v_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
@@ -232,21 +231,22 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
 
         SELECT COUNT(*) INTO v_num_categorias FROM CATEGORIA WHERE CUENTA_ID = p_cuenta_id;
 
+        RETURN v_num_categorias;
+
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró la cuenta con ID: ' || p_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
+            REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
             RAISE;
 
     END F_NUM_CATEGORIAS_CUENTA;
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 
--- 5 
+-- 5 -
 
     PROCEDURE P_ACTUALIZAR_NOMBRE_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
         p_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE, p_nuevo_nombre IN 
@@ -260,14 +260,14 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
     BEGIN
 
         -- VERIFICAMOS SI LA CUENTA EXISTE
-        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id FOR UPDATE;
+        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id;
 
         IF v_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
         END IF;
 
         -- VERIFICAMOS SI EL PRODUCTO EXISTE
-        SELECT COUNT(*) INTO v_producto_cuenta FROM PRODUCTO WHERE GTIN = p_producto_gtin AND CUENTA_ID = p_cuenta_id FOR UPDATE;
+        SELECT COUNT(*) INTO v_producto_cuenta FROM PRODUCTO WHERE GTIN = p_producto_gtin AND CUENTA_ID = p_cuenta_id;
 
         IF v_producto_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un producto asignado
@@ -275,30 +275,22 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
 
         -- ACTUALIZAMOS EL NOMBRE DEL PRODUCTO
         UPDATE PRODUCTO SET NOMBRE = p_nuevo_nombre WHERE GTIN = p_producto_gtin AND CUENTA_ID = p_cuenta_id;
-        
-        -- CONTAMOS LAS FILAS AFECTADAS POR LA ACTUALIZACION
-        -- Si la actualización no afecta ninguna fila, lanzamos una excepción
-        -- AÑADIDO POR JUAN 15/05/2025 (PUEDE BORRARSE)
-        v_filas_afectadas := SQL%ROWCOUNT;
-    
-        IF v_filas_afectadas = 0 THEN
-            DBMS_OUTPUT.PUT_LINE('Advertencia: No se actualizó ningún registro');
-        END IF;
+
+        COMMIT;
 
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el producto para la cuenta con ID: ' || p_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
+            REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
             RAISE;
     END P_ACTUALIZAR_NOMBRE_PRODUCTO;
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 
--- 6
+-- 6 - MODIFICAR EL TIPO DE EXCEPCION A EXCEPTION_ASOCIACION_DUPLICADA (AHORA MISMO ESTA PUESTO QUE LANCE NO_DATA_FOUND)
 
     PROCEDURE P_ASOCIAR_ACTIVO_A_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
         p_producto_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE, p_activo_id IN ACTIVOS.ID%TYPE, 
@@ -313,21 +305,21 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
     BEGIN
 
         -- VERIFICAMOS SI LA CUENTA EXISTE
-        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_producto_cuenta_id FOR UPDATE;
+        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_producto_cuenta_id;
 
         IF v_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no existe la cuenta
         END IF;
 
         -- VERIFICAMOS SI EL PRODUCTO EXISTE
-        SELECT COUNT(*) INTO v_producto_cuenta FROM PRODUCTO WHERE GTIN = p_producto_gtin AND CUENTA_ID = p_producto_cuenta_id FOR UPDATE;
+        SELECT COUNT(*) INTO v_producto_cuenta FROM PRODUCTO WHERE GTIN = p_producto_gtin AND CUENTA_ID = p_producto_cuenta_id;
 
         IF v_producto_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un producto asignado
         END IF;
 
         -- VERIFICAMOS SI EL ACTIVO EXISTE
-        SELECT COUNT(*) INTO v_activos_cuenta FROM ACTIVOS WHERE ID = p_activo_id AND CUENTA_ID = p_activo_cuenta_id FOR UPDATE;
+        SELECT COUNT(*) INTO v_activos_cuenta FROM ACTIVO WHERE ID = p_activo_id AND CUENTA_ID = p_activo_cuenta_id;
 
         IF v_activos_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un activo asignado
@@ -348,24 +340,25 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
         INSERT INTO REL_PROD_ACTIV (Activo_Id, Activo_Cuenta_Id, Producto_GTIN, Producto_Cuenta_Id)
         VALUES (p_activo_id, p_activo_cuenta_id, p_producto_gtin, p_producto_cuenta_id);
 
+        COMMIT;
+
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el producto o activo para la cuenta con ID: ' || p_producto_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
             RAISE;
         WHEN EXCEPTION_ASOCIACION_DUPLICADA THEN
             DBMS_OUTPUT.PUT_LINE('Ya existe una asociación entre el producto ' || p_producto_gtin || ' y el activo ' || p_activo_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
+            REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
+            REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
             RAISE;
     END P_ASOCIAR_ACTIVO_A_PRODUCTO;
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 
--- 7
+-- 7 -
     PROCEDURE P_ELIMINAR_PRODUCTO_Y_ASOCIACIONES(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
         p_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE) AS
 
@@ -376,14 +369,14 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
     BEGIN
 
         -- VERIFICAMOS SI LA CUENTA EXISTE
-        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id FOR UPDATE;
+        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id;
 
         IF v_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no existe la cuenta
         END IF;
 
         -- VERIFICAMOS SI EL PRODUCTO EXISTE
-        SELECT COUNT(*) INTO v_producto_cuenta FROM PRODUCTO WHERE GTIN = p_producto_gtin AND CUENTA_ID = p_cuenta_id FOR UPDATE;
+        SELECT COUNT(*) INTO v_producto_cuenta FROM PRODUCTO WHERE GTIN = p_producto_gtin AND CUENTA_ID = p_cuenta_id;
 
         IF v_producto_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un producto asignado
@@ -401,32 +394,34 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
         -- BORRAMOS EL PRODUCTO DE LA TABLA PRINCIPAL
         DELETE FROM PRODUCTO WHERE GTIN = p_producto_gtin AND CUENTA_ID = p_cuenta_id;
 
-        -- SI OCURRE UN ERROR EN LA ELIMINACION, SE REALIZA UN ROLLBACK. ESTO ORACLE LO HACE AUTOMATICAMENTE
+        COMMIT;
 
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el producto para la cuenta con ID: ' || p_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
+            ROLLBACK;
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
+            REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
+            ROLLBACK;
             RAISE;
     END P_ELIMINAR_PRODUCTO_Y_ASOCIACIONES;
 
-    -- 8
+    -- 8 -
     PROCEDURE P_ACTUALIZAR_PRODUCTOS(p_cuenta_id IN CUENTA.ID%TYPE) IS
         CURSOR C_PRODUCTOS_EXT IS SELECT * FROM PRODUCTOS_EXT WHERE CUENTA_ID = p_cuenta_id;
         CURSOR C_PRODUCTOS IS SELECT * FROM PRODUCTO WHERE CUENTA_ID = p_cuenta_id;
-        
+
         -- Variables declaradas para almacenar los resultados de las consultas
         v_cuenta NUMBER;
         v_num_productos NUMBER;
-
+        v_producto_nombre PRODUCTO.NOMBRE%TYPE;
+        v_producto_gtin PRODUCTO.GTIN%TYPE;
 
     BEGIN
         -- VERIFICAMOS SI LA CUENTA EXISTE
-        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id FOR UPDATE;
+        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id;
 
         IF v_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no existe la cuenta
@@ -434,16 +429,19 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
 
         FOR R_PRODUCTO_EXT IN C_PRODUCTOS_EXT LOOP
 
-            SELECT COUNT(*) INTO v_num_productos FROM PRODUCTO WHERE SKU = R_PRODUCTO_EXT.SKU AND CUENTA_ID = p_cuenta_id FOR UPDATE;
+            SELECT COUNT(*) INTO v_num_productos FROM PRODUCTO WHERE SKU = R_PRODUCTO_EXT.SKU AND CUENTA_ID = p_cuenta_id;
 
             IF v_num_productos = 0 THEN
                 -- SI NO EXISTE EL PRODUCTO EN LA TABLA INTERNA, LO INSERTAMOS
                 INSERT INTO PRODUCTO(SKU, NOMBRE, TEXTOCORTO, CREADO, CUENTA_ID) VALUES (R_PRODUCTO_EXT.SKU, R_PRODUCTO_EXT.NOMBRE, R_PRODUCTO_EXT.TEXTOCORTO, R_PRODUCTO_EXT.CREADO, R_PRODUCTO_EXT.CUENTA_ID);
 
             ELSE 
+
+                SELECT NOMBRE INTO V_PRODUCTO_NOMBRE FROM PRODUCTO WHERE SKU = R_PRODUCTO_EXT.SKU AND CUENTA_ID = p_cuenta_id;
+                SELECT GTIN INTO V_PRODUCTO_GTIN FROM PRODUCTO WHERE SKU = R_PRODUCTO_EXT.SKU AND CUENTA_ID = p_cuenta_id;
                 -- VERIFICAMOS SI SE HA MODIFICADO EL NOMBRE DEL PRODUCTO
-                IF R_PRODUCTO_EXT.NOMBRE != R_PRODUCTO.NOMBRE THEN
-                    P_ACTUALIZAR_NOMBRE_PRODUCTO(R_PRODUCTO_EXT.GTIN, p_cuenta_id, R_PRODUCTO_EXT.NOMBRE);
+                IF R_PRODUCTO_EXT.NOMBRE !=  V_PRODUCTO_NOMBRE THEN
+                    P_ACTUALIZAR_NOMBRE_PRODUCTO(V_PRODUCTO_GTIN, p_cuenta_id, R_PRODUCTO_EXT.NOMBRE);
                 END IF;
             END IF;
         END LOOP;
@@ -452,25 +450,26 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
 
         FOR R_PRODUCTO IN C_PRODUCTOS LOOP
 
-            SELECT COUNT(*) INTO v_num_productos FROM PRODUCTOS_EXT WHERE GTIN = R_PRODUCTO.GTIN AND CUENTA_ID = p_cuenta_id FOR UPDATE;
+            SELECT COUNT(*) INTO v_num_productos FROM PRODUCTOS_EXT WHERE SKU = R_PRODUCTO.SKU AND CUENTA_ID = p_cuenta_id;
 
             IF v_num_productos = 0 THEN
                 P_ELIMINAR_PRODUCTO_Y_ASOCIACIONES(R_PRODUCTO.GTIN, p_cuenta_id);
             END IF;
         END LOOP;
-            
+
+        COMMIT;
 
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el producto para la cuenta con ID: ' || p_cuenta_id);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
+            ROLLBACK;
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(SYSDATE, USER, $$PLQSQL_UNIT, SQLCODE||' '||(SQLERRM, 1, 500));
+            REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
+            ROLLBACK;
             RAISE;
     END P_ACTUALIZAR_PRODUCTOS;
-
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
