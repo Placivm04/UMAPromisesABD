@@ -61,7 +61,7 @@ PROCEDURE REGISTRA_ERRORES(P_MENSAJE IN VARCHAR2, P_DONDE IN VARCHAR2) AS
 /
 
 FUNCTION F_ES_USUARIO_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE) 
-    RETURN BOOLEAN AS
+    RETURN NUMBER AS
     v_usuario_id NUMBER;
 BEGIN
     -- OBTENEMOS EL ID DEL USUARIO QUE HACE LA LLAMADA
@@ -69,15 +69,14 @@ BEGIN
 
     -- COMPARAMOS EL ID DEL USUARIO CON EL ID DE LA CUENTA
     IF v_usuario_id = p_cuenta_id THEN
-        RETURN TRUE;
+        RETURN 1;
     ELSE
-        RETURN FALSE;
+        RETURN 0;
     END IF;
 
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
         DBMS_OUTPUT.PUT_LINE('No se encontró el usuario que realiza la llamada.');
-        REGISTRA_ERRORES('No se encontró el usuario que realiza la llamada.', $$PLSQL_UNIT);
         RETURN FALSE;
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);

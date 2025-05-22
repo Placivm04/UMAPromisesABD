@@ -234,14 +234,14 @@ BEGIN
     
 
     -- VERIFICAMOS QUE EL PRODUCTO ORIGEN EXISTE
-        SELECT COUNT(*) INTO V_PRODUCTO FROM PRODUCTO WHERE GTIN = p_producto_gtin_origen;
+        SELECT COUNT(*) INTO V_PRODUCTO FROM PRODUCTO WHERE GTIN = p_producto_gtin_origen AND CUENTA_ID = p_cuenta_id;
 
         IF V_PRODUCTO = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no existe el producto origen
         END IF;
 
     -- VERIFICAMOS QUE EL PRODUCTO DESTINO EXISTE
-        SELECT COUNT(*) INTO V_PRODUCTO FROM PRODUCTO WHERE GTIN = p_producto_gtin_destino;
+        SELECT COUNT(*) INTO V_PRODUCTO FROM PRODUCTO WHERE GTIN = p_producto_gtin_destino AND CUENTA_ID = p_cuenta_id;
 
         IF V_PRODUCTO = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no existe el producto destino
@@ -273,7 +273,7 @@ BEGIN
                   AND producto_cuenta_id = p_cuenta_id
                   AND atributo_id = r_atributo.atributo_id;
             END IF;
-
+        END;
     END LOOP;
 
     -- Confirmar transacción

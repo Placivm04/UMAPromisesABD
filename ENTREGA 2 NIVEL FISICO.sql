@@ -212,3 +212,48 @@ GRANT SELECT ON V_USUARIO_GESTOR_CUENTAS TO ROL_GESTOR_CUENTAS;
 
 -- 3.1. Otorgar los permisos al Planificador de servicios para hacer CRUD (Create, read, Update, Delete) de la tabla Plan
 -- YA LO HEMOS HECHO ANTES
+
+
+-- CREAMOS UNA POLITICA DE SEGURIDAD QUE USA UN CONTEXTO PARA QUE EL USUARIO SOLO PUEDA VER LOS DATOS DE SU PROPIA CUENTA
+
+
+CREATE TABLE PRODUCTOS_USUARIO AS
+SELECT
+    U.NombreUsuario,
+    P.GTIN,
+    P.SKU,
+    P.Nombre AS NombreProducto
+FROM
+    Usuario U
+JOIN
+    Producto P ON U.Cuenta_Id = P.Cuenta_Id;
+
+
+CREATE OR REPLACE FUNCTION fn_politica_producto_usuario (
+    p_schema VARCHAR2,
+    p_object VARCHAR2
+) RETURN VARCHAR2
+IS
+    v_usuario VARCHAR2(100);
+BEGIN
+    -- Obtiene el nombre del usuario conectado (session user)
+    v_usuario := SYS_CONTEXT('userenv', 'SESSION_USER');
+    
+    -- Devuelve la condición SQL para filtrar filas
+    RETURN 'UPPER(NOMBREUSUARIO) = ''' || UPPER(v_usuario) || '''';
+END;
+/
+
+BEGIN
+    DBMS_RLS.ADD_POLICY(
+        object_schema   => 'PLYTIX',         -- Pon aquí el esquema de la tabla, ej: 'PLYTIX'
+        object_name     => 'PRODUCTOS_USUARIO',  -- Nombre de la tabla
+        policy_name     => 'POL_SEGURIDAD_USUARIO',  -- Nombre que quieras poner a la política
+        function_schema => 'PLYTIX',         -- Esquema donde está la función (normalmente igual al anterior)
+        policy_function => 'FN_POLITICA_PRODUCTO_USUARIO', -- La función que definiste arriba
+        statement_types => 'SELECT',              -- Para qué tipo de sentencia aplica (SELECT, INSERT, UPDATE...)
+        update_check    => FALSE                   -- No hacer chequeo extra en updates
+    );
+END;
+/
+
