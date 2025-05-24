@@ -9,7 +9,7 @@ CREATE TABLE TRAZA (
 
 -- CREAMOS EL PAQUETE PKG_ADMIN_PRODUCTOS QUE CONTIENE LAS FUNCIONES Y PROCEDIMIENTOS QUE SE VAN A UTILIZAR
 
-CREATE OR REPLACE PACKAGE PKG_ADMIN_PRODUCTOS AS
+create or replace PACKAGE PKG_ADMIN_PRODUCTOS AS
 
     -- DEFINIMOS LAS EXPCIONES PERSONALIZADAS QUE VAMOS A UTILIZAR, CON UN INDICE DE ERROR QUE NOSOTROS HEMOS PERSONALIZADO
     EXCEPTION_PLAN_NO_ASIGNADO EXCEPTION; -- Excepción personalizada para el caso de que no haya un plan asignado
@@ -19,26 +19,26 @@ CREATE OR REPLACE PACKAGE PKG_ADMIN_PRODUCTOS AS
     PRAGMA EXCEPTION_INIT(EXCEPTION_ASOCIACION_DUPLICADA, -20002);
 
     EXCEPTION_USUARIO_EXISTENTE EXCEPTION; -- Excepción personalizada para el caso de que el usuario ya exista
-    PRAGMA EXCEPTION_INIT(USUARIO_EXISTENTE, -20003);
+    PRAGMA EXCEPTION_INIT(EXCEPTION_USUARIO_EXISTENTE, -20003);
 
     -- DEFINIMOS LAS FUNCIONES Y PROCEDIMIENTOS QUE VAMOS A UTILIZAR
     FUNCTION F_OBTENER_PLAN_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE) RETURN PLAN%ROWTYPE;
 
     FUNCTION F_CONTAR_PRODUCTOS_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE) RETURN NUMBER;
-
+    
     FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
-    p_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE) RETURN BOOLEAN;
+    p_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE) RETURN NUMBER;
 
     FUNCTION F_NUM_CATEGORIAS_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE) RETURN NUMBER;
-
+    
     PROCEDURE  P_ACTUALIZAR_NOMBRE_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
     p_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE, p_nuevo_nombre IN 
     PRODUCTO.NOMBRE%TYPE);
 
     PROCEDURE  P_ASOCIAR_ACTIVO_A_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
-    p_producto_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE, p_activo_id IN ACTIVOS.ID%TYPE, 
-    p_activo_cuenta_id IN ACTIVOS.CUENTA_ID%TYPE);
-
+    p_producto_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE, p_activo_id IN ACTIVO.ID%TYPE, 
+    p_activo_cuenta_id IN ACTIVO.CUENTA_ID%TYPE);
+    
     PROCEDURE P_ELIMINAR_PRODUCTO_Y_ASOCIACIONES(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
     p_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE);
 
@@ -47,28 +47,28 @@ CREATE OR REPLACE PACKAGE PKG_ADMIN_PRODUCTOS AS
     PROCEDURE P_CREAR_USUARIO(p_usuario IN USUARIO%ROWTYPE, p_rol IN VARCHAR, p_password 
     IN VARCHAR);
 
-END;
+END PKG_ADMIN_PRODUCTOS;
 /
 
 -- AHORA DEFINIMOS EL CUERPO DEL PAQUETE DONDE VAN A ESTAR LAS FUNCIONES Y PROCEDIMIENTOS IMPLEMENTADOS
 
-CREATE OR REPLACE PACKAGE BODY PKG_ADMIN_PRODUCTOS AS
+create or replace PACKAGE BODY PKG_ADMIN_PRODUCTOS AS
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 -- PROCEDIMIENTSOS AUXILIARES QUE DEFINIMOS AQUI, PERO NO EN LA CABECERA DEL PAQUETE
 PROCEDURE REGISTRA_ERRORES(P_MENSAJE IN VARCHAR2, P_DONDE IN VARCHAR2) AS
     PRAGMA AUTONOMOUS_TRANSACTION;
     BEGIN
-        INSERT INTO TRAZA VALUES(SYSDATE, USER, DONDE, P_MENSAJE);
+        INSERT INTO TRAZA VALUES(SYSDATE, USER, P_DONDE, P_MENSAJE);
     END;
-/
+
 
 FUNCTION F_ES_USUARIO_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE) 
     RETURN NUMBER AS
     v_usuario_id NUMBER;
 BEGIN
     -- OBTENEMOS EL ID DE SU CUENTA QUE HACE LA LLAMADA
-    SELECT CUENTA_ID INTO v_usuario_id FROM USUARIO WHERE USERNAME = USER;
+    SELECT CUENTA_ID INTO v_usuario_id FROM USUARIO WHERE NOMBREUSUARIO = USER;
 
     -- COMPARAMOS EL ID DEL USUARIO CON EL ID DE LA CUENTA
     IF v_usuario_id = p_cuenta_id THEN
@@ -80,13 +80,12 @@ BEGIN
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
         DBMS_OUTPUT.PUT_LINE('No se encontró el usuario que realiza la llamada.');
-        RETURN FALSE;
+        RETURN 0;
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
         REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
-        RETURN FALSE;
+        RETURN 0;
 END F_ES_USUARIO_CUENTA;
-
 
 -- 1 -
 
@@ -147,7 +146,7 @@ END F_ES_USUARIO_CUENTA;
         SELECT COUNT(*) INTO v_num_productos FROM PRODUCTO WHERE CUENTA_ID = p_cuenta_id;
 
         RETURN v_num_productos;
-    
+
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró la cuenta con ID: ' || p_cuenta_id);
@@ -158,14 +157,12 @@ END F_ES_USUARIO_CUENTA;
             RAISE;
     END F_CONTAR_PRODUCTOS_CUENTA;
 
-----------------------------------------------------------------------------------------------------------------------------------------------------
-
--- 3 -
+-- 3 --------------------------------------------------
 FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
         p_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE) 
         RETURN NUMBER IS
 
-            CURSOR C_ATRIBUTO IS SELECT * FROM ATRIBUTO;
+            CURSOR C_ATRIBUTO IS SELECT * FROM ATRIBUTO FOR UPDATE;
 
             -- Variables declaradas para almacenar los resultados de las consultas
 
@@ -194,7 +191,7 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
 
             -- COMPROBAMOS SI EXISTE UN VALOR DE ESE ATRIBUTO PARA UN PRODUCTO DADO
             SELECT COUNT(*) INTO v_valor FROM ATRIBUTOS_PRODUCTO WHERE PRODUCTO_GTIN = p_producto_gtin AND Atributo_Id = R_ATRIBUTO.ID AND VALOR IS NOT NULL;
-            
+
             IF v_valor = 0 THEN
                 DBMS_OUTPUT.PUT_LINE('El producto ' || p_producto_gtin || ' no tiene el atributo ' || R_ATRIBUTO.ID);
                 RETURN 0; -- Si no existe el valor, retornamos falso
@@ -246,9 +243,8 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
 
     END F_NUM_CATEGORIAS_CUENTA;
 
-----------------------------------------------------------------------------------------------------------------------------------------------------
+-- 5 ---------------------------------------------------------------------
 
--- 5 -
 
     PROCEDURE P_ACTUALIZAR_NOMBRE_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
         p_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE, p_nuevo_nombre IN 
@@ -283,9 +279,11 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el producto para la cuenta con ID: ' || p_cuenta_id);
+            ROLLBACK;
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
+            ROLLBACK;
             REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
             RAISE;
     END P_ACTUALIZAR_NOMBRE_PRODUCTO;
@@ -295,8 +293,8 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
 -- 6 - MODIFICAR EL TIPO DE EXCEPCION A EXCEPTION_ASOCIACION_DUPLICADA (AHORA MISMO ESTA PUESTO QUE LANCE NO_DATA_FOUND)
 
     PROCEDURE P_ASOCIAR_ACTIVO_A_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
-        p_producto_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE, p_activo_id IN ACTIVOS.ID%TYPE, 
-        p_activo_cuenta_id IN ACTIVOS.CUENTA_ID%TYPE) AS
+        p_producto_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE, p_activo_id IN ACTIVO.ID%TYPE, 
+        p_activo_cuenta_id IN ACTIVO.CUENTA_ID%TYPE) AS
 
         -- Variables declaradas para almacenar los resultados de las consultas
         v_cuenta NUMBER; -- Para contar si existe la cuenta
@@ -332,7 +330,7 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
         WHERE Producto_GTIN = p_producto_gtin
             AND Producto_Cuenta_Id = p_producto_cuenta_id
             AND Activo_Id = p_activo_id
-            AND Activo_Cuenta_Id = p_activo_cuenta_id FOR UPDATE;
+            AND Activo_Cuenta_Id = p_activo_cuenta_id;
 
         IF v_asociacion_existente > 0 THEN
             RAISE EXCEPTION_ASOCIACION_DUPLICADA; -- Lanza la excepción personalizada si ya existe la asociación
@@ -347,20 +345,22 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el producto o activo para la cuenta con ID: ' || p_producto_cuenta_id);
+            ROLLBACK;
             RAISE;
         WHEN EXCEPTION_ASOCIACION_DUPLICADA THEN
             DBMS_OUTPUT.PUT_LINE('Ya existe una asociación entre el producto ' || p_producto_gtin || ' y el activo ' || p_activo_id);
+            ROLLBACK;
             REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
+            ROLLBACK;
             REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
             RAISE;
     END P_ASOCIAR_ACTIVO_A_PRODUCTO;
 
-----------------------------------------------------------------------------------------------------------------------------------------------------
+-- 7) ----------------------------------------------------------------------
 
--- 7 -
     PROCEDURE P_ELIMINAR_PRODUCTO_Y_ASOCIACIONES(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
         p_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE) AS
 
@@ -405,8 +405,8 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
             RAISE;
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
             ROLLBACK;
+            REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
             RAISE;
     END P_ELIMINAR_PRODUCTO_Y_ASOCIACIONES;
 
@@ -477,7 +477,7 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
 
     -- 9
 
-CREATE OR REPLACE PROCEDURE P_CREAR_USUARIO(
+    PROCEDURE P_CREAR_USUARIO(
     p_usuario  IN USUARIO%ROWTYPE,
     p_rol      IN VARCHAR,
     p_password IN VARCHAR
@@ -494,7 +494,7 @@ BEGIN
     WHERE UPPER(NOMBREUSUARIO) = NOMBRE_USER;
 
     IF v_usuario_id = 1 THEN
-        RAISE USUARIO_EXISTENTE; -- Lanza la excepción personalizada si el usuario ya existe
+        RAISE EXCEPTION_USUARIO_EXISTENTE; -- Lanza la excepción personalizada si el usuario ya existe
     END IF;
 
     -- Inserta los datos en la tabla Usuario
@@ -543,7 +543,7 @@ BEGIN
     EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".ATRIBUTO_PRODUCTO FOR V_ATRIBUTO_PRODUCTO';
 
 EXCEPTION
-        WHEN USUARIO_EXISTENTE THEN
+        WHEN EXCEPTION_USUARIO_EXISTENTE THEN
             REGISTRA_ERRORES('Error inesperado Usuario existente: ' || SQLERRM, $$PLSQL_UNIT);
             DBMS_OUTPUT.PUT_LINE('Error inesperado Usuario existente: ' || SQLERRM);
             RAISE;
@@ -551,10 +551,9 @@ EXCEPTION
         WHEN OTHERS THEN
             DELETE FROM USUARIO WHERE NOMBREUSUARIO = NOMBRE_USER;
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-            REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
+            REGISTRA_ERRORES('Error inesperado Al Crear Usuario Nuevo: ' || SQLERRM, $$PLSQL_UNIT);
             RAISE;
 END P_CREAR_USUARIO;
-/
 
 END PKG_ADMIN_PRODUCTOS;
 /
