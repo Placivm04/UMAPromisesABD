@@ -18,6 +18,9 @@ CREATE OR REPLACE PACKAGE PKG_ADMIN_PRODUCTOS AS
     EXCEPTION_ASOCIACION_DUPLICADA EXCEPTION; -- Excepción personalizada para el caso de que la asociación ya exista
     PRAGMA EXCEPTION_INIT(EXCEPTION_ASOCIACION_DUPLICADA, -20002);
 
+    EXCEPTION_USUARIO_EXISTENTE EXCEPTION; -- Excepción personalizada para el caso de que el usuario ya exista
+    PRAGMA EXCEPTION_INIT(USUARIO_EXISTENTE, -20003);
+
     -- DEFINIMOS LAS FUNCIONES Y PROCEDIMIENTOS QUE VAMOS A UTILIZAR
     FUNCTION F_OBTENER_PLAN_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE) RETURN PLAN%ROWTYPE;
 
@@ -64,8 +67,8 @@ FUNCTION F_ES_USUARIO_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE)
     RETURN NUMBER AS
     v_usuario_id NUMBER;
 BEGIN
-    -- OBTENEMOS EL ID DEL USUARIO QUE HACE LA LLAMADA
-    SELECT ID INTO v_usuario_id FROM USUARIO WHERE USERNAME = USER;
+    -- OBTENEMOS EL ID DE SU CUENTA QUE HACE LA LLAMADA
+    SELECT CUENTA_ID INTO v_usuario_id FROM USUARIO WHERE USERNAME = USER;
 
     -- COMPARAMOS EL ID DEL USUARIO CON EL ID DE LA CUENTA
     IF v_usuario_id = p_cuenta_id THEN
@@ -474,269 +477,140 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
 
     -- 9
 
-    CREATE OR REPLACE PROCEDURE P_CREAR_USUARIO(
-        p_usuario IN USUARIO%ROWTYPE,
-        p_rol IN VARCHAR2,
-        p_password IN VARCHAR2
-    ) AS
-        -- Variables locales
-        v_usuario_existe NUMBER := 0;
-        v_rol_valido BOOLEAN := FALSE;
-        v_sql VARCHAR2(4000);
-        v_user_id NUMBER;
-        
-        -- Excepciones personalizadas
-        e_usuario_existente EXCEPTION;
-        PRAGMA EXCEPTION_INIT(e_usuario_existente, -20001);
-        e_rol_invalido EXCEPTION;
-        PRAGMA EXCEPTION_INIT(e_rol_invalido, -20002);
-        e_password_invalido EXCEPTION;
-        PRAGMA EXCEPTION_INIT(e_password_invalido, -20003);
-    
-    BEGIN
-        -- 1. VALIDACIONES INICIALES
-        -- Verificar si el usuario ya existe
-        SELECT COUNT(*) INTO v_usuario_existe 
-        FROM USUARIO 
-        WHERE UPPER(USERNAME) = UPPER(p_usuario.USERNAME);
-        
-        IF v_usuario_existe > 0 THEN
-            RAISE e_usuario_existente;
-        END IF;
-        
-        -- Validar rol (ejemplo con roles predefinidos)
-        v_rol_valido := p_rol IN ('ADMIN', 'EDITOR', 'LECTOR', 'INVITADO');
-        IF NOT v_rol_valido THEN
-            RAISE e_rol_invalido;
-        END IF;
-        
-        -- Validar contraseña (mínimo 8 caracteres)
-        IF LENGTH(p_password) < 8 THEN
-            RAISE e_password_invalido;
-        END IF;
-    
-        -- 2. CREACIÓN DEL USUARIO EN LA BASE DE DATOS
-        -- Insertar en tabla USUARIO
-        INSERT INTO USUARIO (
-            ID,
-            USERNAME,
-            NOMBRE,
-            APELLIDO,
-            EMAIL,
-            FECHA_CREACION,
-            ULTIMO_ACCESO,
-            ESTADO
-        ) VALUES (
-            SEQ_USUARIO.NEXTVAL,
-            p_usuario.USERNAME,
-            p_usuario.NOMBRE,
-            p_usuario.APELLIDO,
-            p_usuario.EMAIL,
-            SYSDATE,
-            NULL,
-            'ACTIVO'
-        ) RETURNING ID INTO v_user_id;
-    
-    -- 3. ASIGNACIÓN DE PERMISOS Y ROLES
-    -- Crear usuario en el sistema (si se usa autenticación de BD)
-    BEGIN
-        v_sql := 'CREATE USER ' || p_usuario.USERNAME || ' IDENTIFIED BY "' || p_password || '"';
-        EXECUTE IMMEDIATE v_sql;
-        
-        -- Asignar roles según configuración
-        CASE p_rol
-            WHEN 'ADMIN' THEN
-                EXECUTE IMMEDIATE 'GRANT DBA TO ' || p_usuario.USERNAME;
-            WHEN 'EDITOR' THEN
-                EXECUTE IMMEDIATE 'GRANT CONNECT, RESOURCE TO ' || p_usuario.USERNAME;
-                EXECUTE IMMEDIATE 'GRANT SELECT, INSERT, UPDATE ON SCHEMA_PROYECTO.* TO ' || p_usuario.USERNAME;
-            WHEN 'LECTOR' THEN
-                EXECUTE IMMEDIATE 'GRANT CONNECT TO ' || p_usuario.USERNAME;
-                EXECUTE IMMEDIATE 'GRANT SELECT ON SCHEMA_PROYECTO.* TO ' || p_usuario.USERNAME;
-            ELSE -- INVITADO
-                EXECUTE IMMEDIATE 'GRANT CONNECT TO ' || p_usuario.USERNAME;
-        END CASE;
-    EXCEPTION
-        WHEN OTHERS THEN
-            DBMS_OUTPUT.PUT_LINE('Error al crear usuario en BD: ' || SQLERRM);
-            RAISE;
-    END;
-    
-    -- 4. CREACIÓN DE SINÓNIMOS (OPCIONAL)
-    BEGIN
-        FOR tab_rec IN (SELECT TABLE_NAME FROM ALL_TABLES WHERE OWNER = 'SCHEMA_PROYECTO') LOOP
-            v_sql := 'CREATE SYNONYM ' || tab_rec.TABLE_NAME || ' FOR SCHEMA_PROYECTO.' || tab_rec.TABLE_NAME;
-            EXECUTE IMMEDIATE v_sql;
-        END LOOP;
-    EXCEPTION
-        WHEN OTHERS THEN
-            DBMS_OUTPUT.PUT_LINE('Advertencia: Error creando sinónimos: ' || SQLERRM);
-    END;
-    
-    -- 5. CONFIGURACIÓN DE CONTEXTO DE APLICACIÓN (OPCIONAL)
-    BEGIN
-        INSERT INTO CONTEXTOS_APLICACION (
-            USUARIO_ID,
-            ROL,
-            FECHA_CREACION
-        ) VALUES (
-            v_user_id,
-            p_rol,
-            SYSDATE
-        );
-    EXCEPTION
-        WHEN OTHERS THEN
-            DBMS_OUTPUT.PUT_LINE('Advertencia: Error configurando contexto: ' || SQLERRM);
-    END;
-    
+CREATE OR REPLACE PROCEDURE P_CREAR_USUARIO(
+    p_usuario  IN USUARIO%ROWTYPE,
+    p_rol      IN VARCHAR,
+    p_password IN VARCHAR
+)
+IS
+    v_usuario_id NUMBER;
+    NOMBRE_USER VARCHAR2(100);
+BEGIN
+    NOMBRE_USER := UPPER(p_usuario.NOMBREUSUARIO);
+
+    -- Verifica si el usuario ya existe
+    SELECT COUNT(*) INTO v_usuario_id 
+    FROM USUARIO 
+    WHERE UPPER(NOMBREUSUARIO) = NOMBRE_USER;
+
+    IF v_usuario_id = 1 THEN
+        RAISE USUARIO_EXISTENTE; -- Lanza la excepción personalizada si el usuario ya existe
+    END IF;
+
+    -- Inserta los datos en la tabla Usuario
+    INSERT INTO Usuario (
+        Id,
+        NombreUsuario,
+        NombreCompleto,
+        Avatar,
+        CorreoElectronico,
+        Telefono,
+        Cuenta_Id,
+        Cuenta_Dueno
+    ) VALUES (
+        p_usuario.Id,
+        p_usuario.NombreUsuario,
+        p_usuario.NombreCompleto,
+        p_usuario.Avatar,
+        p_usuario.CorreoElectronico,
+        p_usuario.Telefono,
+        p_usuario.Cuenta_Id,
+        p_usuario.Cuenta_Dueno
+    );
+
     COMMIT;
-    DBMS_OUTPUT.PUT_LINE('Usuario ' || p_usuario.USERNAME || ' creado exitosamente con rol ' || p_rol);
-    
-    EXCEPTION
-        WHEN e_usuario_existente THEN
-            ROLLBACK;
-            DBMS_OUTPUT.PUT_LINE('Error: El usuario ' || p_usuario.USERNAME || ' ya existe');
-            INSERT INTO TRAZA VALUES(
-                SYSDATE, 
-                USER, 
-                'P_CREAR_USUARIO', 
-                '-20001 - Usuario existente: ' || p_usuario.USERNAME
-            );
+
+    -- Crear el usuario en Oracle
+    EXECUTE IMMEDIATE 'CREATE USER "' || NOMBRE_USER || '" IDENTIFIED BY "' || p_password || '"';
+
+    -- Asignar el rol
+    EXECUTE IMMEDIATE 'GRANT "' || p_rol || '" TO "' || NOMBRE_USER || '"';
+
+    -- Asignar el perfil
+    EXECUTE IMMEDIATE 'ALTER USER "' || NOMBRE_USER || '" PROFILE USERPLYTIX_PROFILE';
+
+    -- Crear sinónimos
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".USUARIO_ESTANDAR FOR V_USUARIO_ESTANDAR';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".PRODUCTO FOR V_USUARIO_PRODUCTO';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".ACTIVO FOR V_USUARIO_ACTIVO';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".ATRIBUTO FOR V_USUARIO_ATRIBUTO';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".PLAN FOR V_USUARIO_PLAN';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".PRODUCTO_PUBLICO FOR V_PRODUCTO_PUBLICO';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".REL_ACTIVO_CATEGORIA FOR V_ACTIVO_REL_ACTIVO_CATEGORIA';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".CATEGORIA FOR V_CATEGORIA';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".REL_PRODUCTO_CATEGORIA FOR V_REL_PRODUCTO_CATEGORIA';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".RELACIONADO FOR V_RELACIONADO';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".ATRIBUTO_PRODUCTO FOR V_ATRIBUTO_PRODUCTO';
+
+EXCEPTION
+        WHEN USUARIO_EXISTENTE THEN
+            REGISTRA_ERRORES('Error inesperado Usuario existente: ' || SQLERRM, $$PLSQL_UNIT);
+            DBMS_OUTPUT.PUT_LINE('Error inesperado Usuario existente: ' || SQLERRM);
             RAISE;
-            
-        WHEN e_rol_invalido THEN
-            ROLLBACK;
-            DBMS_OUTPUT.PUT_LINE('Error: Rol ' || p_rol || ' no válido');
-            INSERT INTO TRAZA VALUES(
-                SYSDATE, 
-                USER, 
-                'P_CREAR_USUARIO', 
-                '-20002 - Rol inválido: ' || p_rol
-            );
-            RAISE;
-            
-        WHEN e_password_invalido THEN
-            ROLLBACK;
-            DBMS_OUTPUT.PUT_LINE('Error: La contraseña debe tener al menos 8 caracteres');
-            INSERT INTO TRAZA VALUES(
-                SYSDATE, 
-                USER, 
-                'P_CREAR_USUARIO', 
-                '-20003 - Contraseña inválida'
-            );
-            RAISE;
-            
+
         WHEN OTHERS THEN
-            ROLLBACK;
-            DBMS_OUTPUT.PUT_LINE('Error inesperado al crear usuario: ' || SQLERRM);
-            INSERT INTO TRAZA VALUES(
-                SYSDATE, 
-                USER, 
-                'P_CREAR_USUARIO', 
-                SQLCODE || ' - ' || SUBSTR(SQLERRM, 1, 200)
-            );
+            DELETE FROM USUARIO WHERE NOMBREUSUARIO = NOMBRE_USER;
+            DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
+            REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
             RAISE;
-    END P_CREAR_USUARIO;
+END P_CREAR_USUARIO;
+/
 
 END PKG_ADMIN_PRODUCTOS;
 /
-    -- CASOS DE PRUEBA (LO PIDE EL ENUNCIADO)
-
-    -- Procedimiento de pruebas
-    CREATE OR REPLACE PROCEDURE TEST_P_CREAR_USUARIO AS
-        v_usuario USUARIO%ROWTYPE;
-    BEGIN
-        DBMS_OUTPUT.PUT_LINE('=== INICIO PRUEBAS P_CREAR_USUARIO ===');
-    
-        -- Caso 1: Creación exitosa de usuario ADMIN
-        BEGIN
-            v_usuario.USERNAME := 'admin_test';
-            v_usuario.NOMBRE := 'Administrador';
-            v_usuario.APELLIDO := 'Prueba';
-            v_usuario.EMAIL := 'admin@test.com';
-            
-            P_CREAR_USUARIO(v_usuario, 'ADMIN', 'SecurePass123');
-            DBMS_OUTPUT.PUT_LINE('Prueba 1: OK - Usuario ADMIN creado correctamente');
-        EXCEPTION
-            WHEN OTHERS THEN
-                DBMS_OUTPUT.PUT_LINE('Prueba 1: FALLÓ - ' || SQLERRM);
-        END;
-        
-        -- Caso 2: Usuario existente (debería fallar)
-        BEGIN
-            P_CREAR_USUARIO(v_usuario, 'ADMIN', 'SecurePass123');
-            DBMS_OUTPUT.PUT_LINE('Prueba 2: FALLÓ - No detectó usuario existente');
-        EXCEPTION
-            WHEN OTHERS THEN
-                IF SQLCODE = -20001 THEN
-                    DBMS_OUTPUT.PUT_LINE('Prueba 2: OK - Correctamente detectado usuario existente');
-                ELSE
-                    DBMS_OUTPUT.PUT_LINE('Prueba 2: FALLÓ - Error inesperado: ' || SQLERRM);
-                END IF;
-        END;
-        
-        -- Caso 3: Rol inválido (debería fallar)
-        BEGIN
-            v_usuario.USERNAME := 'test_invalido';
-            P_CREAR_USUARIO(v_usuario, 'ROL_INVALIDO', 'SecurePass123');
-            DBMS_OUTPUT.PUT_LINE('Prueba 3: FALLÓ - No detectó rol inválido');
-        EXCEPTION
-            WHEN OTHERS THEN
-                IF SQLCODE = -20002 THEN
-                    DBMS_OUTPUT.PUT_LINE('Prueba 3: OK - Correctamente detectado rol inválido');
-                ELSE
-                    DBMS_OUTPUT.PUT_LINE('Prueba 3: FALLÓ - Error inesperado: ' || SQLERRM);
-                END IF;
-        END;
-        
-        -- Caso 4: Contraseña inválida (debería fallar)
-        BEGIN
-            v_usuario.USERNAME := 'test_pass';
-            P_CREAR_USUARIO(v_usuario, 'LECTOR', '123');
-            DBMS_OUTPUT.PUT_LINE('Prueba 4: FALLÓ - No detectó contraseña inválida');
-        EXCEPTION
-            WHEN OTHERS THEN
-                IF SQLCODE = -20003 THEN
-                    DBMS_OUTPUT.PUT_LINE('Prueba 4: OK - Correctamente detectada contraseña inválida');
-                ELSE
-                    DBMS_OUTPUT.PUT_LINE('Prueba 4: FALLÓ - Error inesperado: ' || SQLERRM);
-                END IF;
-        END;
-    
-        DBMS_OUTPUT.PUT_LINE('=== FIN PRUEBAS P_CREAR_USUARIO ===');
-
-    END TEST_P_CREAR_USUARIO;
 
 
-PROCEDURE REGISTRA_ERRORES(P_MENSAJE IN VARCHAR2, P_DONDE IN VARCHAR2) AS
-    PRAGMA AUTONOMOUS_TRANSACTION;
-    BEGIN
-        INSERT INTO TRAZA VALUES(SYSDATE, USER, DONDE, P_MENSAJE);
-    END;
+-- CREAMOS ESTE JOB QUE RECOJA LOS USUARIOS QUE ESTAN CREADOS PERO NO ESTAN EN LA BASE DE DATOS DEL SISTEMA, Y LOS ELIMINE
+-- EL JOB SE EJECUTARA UNA VEZ AL DIA A LAS 3 DE LA MAÑANA
+
+BEGIN
+  DBMS_SCHEDULER.create_job (
+    job_name        => 'JOB_LIMPIEZA_USUARIOS_HUERFANOS',
+    job_type        => 'PLSQL_BLOCK',
+    job_action      => '
+      DECLARE
+        CURSOR c IS
+          SELECT username FROM all_users
+          WHERE username NOT IN (
+            SELECT UPPER(NombreUsuario) FROM Usuario
+          );
+      BEGIN
+        FOR r IN c LOOP
+          BEGIN
+            EXECUTE IMMEDIATE ''DROP USER "'' || r.username || ''" CASCADE'';
+            DBMS_OUTPUT.PUT_LINE(''Usuario eliminado: '' || r.username);
+          EXCEPTION
+            WHEN OTHERS THEN
+              DBMS_OUTPUT.PUT_LINE(''Error eliminando usuario '' || r.username || '': '' || SQLERRM);
+          END;
+        END LOOP;
+      END;',
+    start_date      => SYSTIMESTAMP,
+    repeat_interval => 'FREQ=DAILY;BYHOUR=3;BYMINUTE=0;BYSECOND=0',
+    enabled         => TRUE,
+    comments        => 'Elimina usuarios del sistema que no estén en la tabla Usuario'
+  );
+END;
 /
 
-FUNCTION F_ES_USUARIO_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE) 
-    RETURN BOOLEAN AS
-    v_usuario_id NUMBER;
+DECLARE
+  v_usuario USUARIO%ROWTYPE;
 BEGIN
-    -- OBTENEMOS EL ID DEL USUARIO QUE HACE LA LLAMADA
-    SELECT ID INTO v_usuario_id FROM USUARIO WHERE USERNAME = USER;
+  -- Rellenamos el registro con los valores deseados
+  v_usuario.Id := 126;
+  v_usuario.NombreUsuario := 'elena87';
+  v_usuario.NombreCompleto := 'Marciano Pera Arias';
+  v_usuario.Avatar := NULL; -- Aquí puedes poner una URL o una cadena si usas avatar
+  v_usuario.CorreoElectronico := 'elena87@example.org';
+  v_usuario.Telefono := '+34 723 463 244';
+  v_usuario.Cuenta_Id := 3;
+  v_usuario.Cuenta_Dueno := NULL; -- Si aplica, pon el ID del dueño; si no, déjalo como NULL
 
-    -- COMPARAMOS EL ID DEL USUARIO CON EL ID DE LA CUENTA
-    IF v_usuario_id = p_cuenta_id THEN
-        RETURN TRUE;
-    ELSE
-        RETURN FALSE;
-    END IF;
-
-EXCEPTION
-    WHEN NO_DATA_FOUND THEN
-        DBMS_OUTPUT.PUT_LINE('No se encontró el usuario que realiza la llamada.');
-        REGISTRA_ERRORES('No se encontró el usuario que realiza la llamada.', $$PLSQL_UNIT);
-        RETURN FALSE;
-    WHEN OTHERS THEN
-        DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
-        REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
-        RETURN FALSE;
-END F_ES_USUARIO_CUENTA;
-
+  -- Llamamos al procedimiento
+  P_CREAR_USUARIO(
+    p_usuario  => v_usuario,
+    p_rol      => 'USUARIO_ESTANDAR', -- Asegúrate de que este rol exista en la BBDD
+    p_password => 'MiContraseñaSegura123' -- Define la contraseña que tendrá el nuevo usuario
+  );
+END;
+/

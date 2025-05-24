@@ -292,3 +292,111 @@ BEGIN
             RAISE;
 END P_REPLICAR_ATRIBUTOS;
 /
+
+
+-- JOBS
+
+-- J_LIMPIA_TRAZA: Limpia las entradas de la tabla TRAZA que tengan más de 1 año.
+-- Para probarlo se pueden hacer con las que tengan más de un minuto y luego modificarlo.
+
+BEGIN
+DBMS_SCHEDULER.CREATE_JOB (
+job_name => 'J_LIMPIA_TRAZA',
+job_type => 'PLSQL_BLOCK',
+job_action => 'BEGIN 
+DELETE FROM TRAZA  
+WHERE MONTHS_BETWEEN(SYSDATE, FECHA) >= 12; --Borra los que tengan un año
+END;',
+start_date => SYSDATE,
+repeat_interval => 'FREQ=DAILY; INTERVAL=1',
+end_date => TO_DATE('01-JAN-2030 00:00:00', 'DD-MON-YYYY HH24:MI:SS'),
+enabled => TRUE,
+comments => 'Limpia las entradas de la tabla TRAZA que tengan más de 1 año.');
+END;
+/
+
+----------------------------------------------------------------------------------------------------------------
+
+-- J_ACTUALIZA_PRODUCTOS. Actualiza desde la tabla de productos externos los productos
+-- de la tabla Productos para todas las cuentas de la base de datos llamando a P_ACTUALIZAR_PRODUCTOS.
+
+BEGIN
+DBMS_SCHEDULER.CREATE_JOB (
+job_name => 'J_ACTUALIZA_PRODUCTOS',
+job_type => 'PLSQL_BLOCK',
+job_action => 'BEGIN 
+    FOR CUENTA IN (SELECT ID FROM CUENTA) LOOP  
+        P_ACTUALIZAR_PRODUCTOS(CUENTA.ID);  
+    END LOOP; 
+END;',
+start_date => SYSDATE,
+repeat_interval => 'FREQ=WEEKLY; INTERVAL=1', --Semanalmente
+end_date => TO_DATE('01-1-2030 00:00:00', 'DD-MM-YYYY HH24:MI:SS'),
+enabled => TRUE,
+comments => 'Actualiza desde la tabla de productos externos los productos de
+la tabla Productos para todas las cuentas de la base de datos llamando a
+P_ACTUALIZAR_PRODUCTOS.');
+END;
+/
+
+SELECT * FROM dba_scheduler_jobs WHERE  job_name = 'J_LIMPIA_TRAZA' OR job_name = 'J_ACTUALIZA_PRODUCTOS';
+
+------------------------------------------------------------------------------------------------------------------------------
+-- Alguna política de gestión de contraseñas
+-- VAMOS A CREAR UN PROFILE CON ALGUNAS CARACTERISTICAS QUE ES EL QUE VAN A TENER LOS USUARIOS DE LA APLICACION
+
+ CREATE PROFILE USERPLYTIX_PROFILE LIMIT
+    CONNECT_TIME UNLIMITED  --Duración máxima de la conexión.
+    IDLE_TIME 20            --Minutos de tiempo muerto en una sesión.
+    FAILED_LOGIN_ATTEMPTS 4 --nº máximo de intentos para bloquear cuenta.
+    PASSWORD_LIFE_TIME 90-- Nº de días de expiración de la password.
+    PASSWORD_GRACE_TIME 3;  --Periodo de gracia después de los 90 días.
+
+ SELECT * FROM DBA_PROFILES WHERE PROFILE = 'USERPLYTIX_PROFILE';
+
+------------------------------------------------------------------------------------------------------------------------------
+
+-- -- PROCEDIMIENTOS DE PRUEBA 
+-- -- Comprobamos que funcionan correctamente los JOBS
+
+-- CREATE OR REPLACE PROCEDURE TEST_JOBS_ADMIN_PRODUCTOS AS
+-- BEGIN
+--   -- Preparar datos de prueba en productos_ext (simulado)
+--   DBMS_OUTPUT.PUT_LINE('=== PREPARANDO DATOS DE PRUEBA ===');
+  
+--   -- Ejecutar job de limpieza
+--   DBMS_OUTPUT.PUT_LINE('=== EJECUTANDO J_LIMPIA_TRAZA ===');
+--   DBMS_SCHEDULER.RUN_JOB('J_LIMPIA_TRAZA');
+  
+--   -- Ejecutar job de actualización de productos
+--   DBMS_OUTPUT.PUT_LINE('=== EJECUTANDO J_ACTUALIZA_PRODUCTOS ===');
+--   DBMS_SCHEDULER.RUN_JOB('J_ACTUALIZA_PRODUCTOS');
+  
+--   -- Verificar resultados
+--   DBMS_OUTPUT.PUT_LINE('=== RESULTADOS ===');
+--   DBMS_OUTPUT.PUT_LINE('Registros en Producto: ' || 
+--     (SELECT COUNT(*) FROM Producto));
+--   DBMS_OUTPUT.PUT_LINE('Registros en productos_ext: ' || 
+--     (SELECT COUNT(*) FROM productos_ext WHERE REGEXP_LIKE(cuenta_id, '^[0-9]+$')));
+  
+--   -- Mostrar últimos registros de TRAZA
+--   DBMS_OUTPUT.PUT_LINE('=== ÚLTIMOS EVENTOS EN TRAZA ===');
+--   FOR t IN (SELECT * FROM (
+--               SELECT fecha, modulo, mensaje 
+--               FROM TRAZA 
+--               ORDER BY fecha DESC) 
+--             WHERE ROWNUM <= 5) LOOP
+--     DBMS_OUTPUT.PUT_LINE(TO_CHAR(t.fecha, 'DD/MM/YY HH24:MI') || ' - ' || 
+--                          t.modulo || ': ' || t.mensaje);
+--   END LOOP;
+-- EXCEPTION
+--   WHEN OTHERS THEN
+--     DBMS_OUTPUT.PUT_LINE('Error en TEST_JOBS_ADMIN_PRODUCTOS: ' || SQLERRM);
+--     INSERT INTO TRAZA VALUES(SYSDATE, USER, 'TEST_JOBS', SQLERRM);
+--     COMMIT;
+--     RAISE;
+-- END TEST_JOBS_ADMIN_PRODUCTOS;
+-- /
+
+
+
