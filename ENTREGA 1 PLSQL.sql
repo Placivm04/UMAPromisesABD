@@ -521,7 +521,7 @@ BEGIN
     COMMIT;
 
     -- Crear el usuario en Oracle
-    EXECUTE IMMEDIATE 'CREATE USER "' || NOMBRE_USER || '" IDENTIFIED BY "' || p_password || '"';
+    EXECUTE IMMEDIATE 'CREATE USER "' || NOMBRE_USER || '_PLT" IDENTIFIED BY "' || p_password || '"';
 
     -- Asignar el rol
     EXECUTE IMMEDIATE 'GRANT "' || p_rol || '" TO "' || NOMBRE_USER || '"';
@@ -572,7 +572,7 @@ BEGIN
           SELECT username FROM all_users
           WHERE username NOT IN (
             SELECT UPPER(NombreUsuario) FROM Usuario
-          );
+          ) AND USERNAME LIKE ''%_PLT''; -- Filtramos por usuarios que terminan en _PLT
       BEGIN
         FOR r IN c LOOP
           BEGIN
