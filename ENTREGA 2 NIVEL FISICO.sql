@@ -246,6 +246,8 @@ BEGIN
 END;
 /
 
+-- 
+
 BEGIN
     DBMS_RLS.ADD_POLICY(
         object_schema   => 'PLYTIX',         -- Pon aquí el esquema de la tabla, ej: 'PLYTIX'
@@ -265,6 +267,11 @@ CREATE AUDIT POLICY auditoria_tabla_plan
   ACTIONS SELECT, INSERT, UPDATE, DELETE ON PLAN;
 
 AUDIT POLICY auditoria_tabla_plan;
+
+CREATE AUDIT POLICY auditoria_tabla_cuenta
+  ACTIONS SELECT, INSERT, UPDATE, DELETE ON CUENTA;
+
+AUDIT POLICY auditoria_tabla_cuenta;
 
 SELECT 
   COUNT(*)
