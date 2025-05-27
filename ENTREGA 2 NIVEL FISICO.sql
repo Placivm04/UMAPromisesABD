@@ -231,37 +231,87 @@ JOIN
     Producto P ON U.Cuenta_Id = P.Cuenta_Id;
 
 
+CREATE CONTEXT ctx_usuario USING pkg_ctx_usuario;
+
+
+CREATE OR REPLACE PACKAGE pkg_ctx_usuario IS
+    PROCEDURE establecer_usuario;
+END;
+/
+
+CREATE OR REPLACE PACKAGE BODY pkg_ctx_usuario IS
+    PROCEDURE establecer_usuario IS
+        v_usuario VARCHAR2(100);
+        v_existe  NUMBER;
+    BEGIN
+        v_usuario := USER;
+
+        SELECT COUNT(*)
+        INTO v_existe
+        FROM Usuario
+        WHERE UPPER(NombreUsuario) = UPPER(v_usuario);
+
+        IF v_existe > 0 THEN
+            DBMS_SESSION.SET_CONTEXT(
+                namespace => 'ctx_usuario',
+                attribute => 'usuario_actual',
+                value     => v_usuario
+            );
+        ELSE
+            DBMS_SESSION.SET_CONTEXT(
+                namespace => 'ctx_usuario',
+                attribute => 'usuario_actual',
+                value     => NULL
+            );
+        END IF;
+    END;
+END;
+/
+
 CREATE OR REPLACE FUNCTION fn_politica_producto_usuario (
     p_schema VARCHAR2,
     p_object VARCHAR2
 ) RETURN VARCHAR2
 IS
-    v_usuario VARCHAR2(100);
+    v_usuario_ctx VARCHAR2(100);
 BEGIN
-    -- Obtiene el nombre del usuario conectado (session user)
-    v_usuario := SYS_CONTEXT('userenv', 'SESSION_USER');
-    
-    -- Devuelve la condición SQL para filtrar filas
-    RETURN 'UPPER(NOMBREUSUARIO) = ''' || UPPER(v_usuario) || '''';
+    v_usuario_ctx := SYS_CONTEXT('ctx_usuario', 'usuario_actual');
+
+    IF v_usuario_ctx IS NULL THEN
+        RETURN '1=0';  -- Si no se ha establecido contexto, no se permite ver nada
+    ELSE
+        RETURN 'UPPER(NOMBREUSUARIO) = ''' || UPPER(v_usuario_ctx) || '''';
+    END IF;
 END;
 /
 
--- 
-
 BEGIN
-    DBMS_RLS.ADD_POLICY(
-        object_schema   => 'PLYTIX',         -- Pon aquí el esquema de la tabla, ej: 'PLYTIX'
-        object_name     => 'PRODUCTOS_USUARIO',  -- Nombre de la tabla
-        policy_name     => 'POL_SEGURIDAD_USUARIO',  -- Nombre que quieras poner a la política
-        function_schema => 'PLYTIX',         -- Esquema donde está la función (normalmente igual al anterior)
-        policy_function => 'FN_POLITICA_PRODUCTO_USUARIO', -- La función que definiste arriba
-        statement_types => 'SELECT',              -- Para qué tipo de sentencia aplica (SELECT, INSERT, UPDATE...)
-        update_check    => FALSE                   -- No hacer chequeo extra en updates
-    );
+  DBMS_RLS.ADD_POLICY(
+    object_schema   => 'PLYTIX',
+    object_name     => 'PRODUCTOS_USUARIO',
+    policy_name     => 'POL_SEGURIDAD_USUARIO',
+    function_schema => 'PLYTIX',
+    policy_function => 'FN_POLITICA_PRODUCTO_USUARIO',
+    statement_types => 'SELECT',
+    update_check    => FALSE
+  );
 END;
 /
 
--- CREAMOS AUDITORIA PARA LA TABLA PLAN
+GRANT EXECUTE ON PKG_CTX_USUARIO TO CLIENTE_PLYTIX;
+
+-- DE ESTE MODO SI EL USUARIO CLIENTE_PLYTIX SE CONECTA A LA BASE DE DATOS Y EJECUTA:
+
+BEGIN
+  PLYTIX.pkg_ctx_usuario.establecer_usuario;
+END;
+/
+
+SELECT * FROM PLYTIX.PRODUCTOS_USUARIO; -- SOLO VA A PODER VER SUS PROPIOS PRODUCTOS
+
+
+
+-- CREAMOS AUDITORIA PARA LA TABLA PLAN Y CUENTA
 
 CREATE AUDIT POLICY auditoria_tabla_plan
   ACTIONS SELECT, INSERT, UPDATE, DELETE ON PLAN;
