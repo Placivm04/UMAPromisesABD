@@ -220,15 +220,7 @@ GRANT SELECT ON V_USUARIO_GESTOR_CUENTAS TO ROL_GESTOR_CUENTAS;
 
 
 CREATE TABLE PRODUCTOS_USUARIO AS
-SELECT
-    U.NombreUsuario,
-    P.GTIN,
-    P.SKU,
-    P.Nombre AS NombreProducto
-FROM
-    Usuario U
-JOIN
-    Producto P ON U.Cuenta_Id = P.Cuenta_Id;
+
 
 
 CREATE CONTEXT ctx_usuario USING pkg_ctx_usuario;

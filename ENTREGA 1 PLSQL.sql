@@ -486,7 +486,7 @@ IS
     v_usuario_id NUMBER;
     NOMBRE_USER VARCHAR2(100);
 BEGIN
-    NOMBRE_USER := UPPER(p_usuario.NOMBREUSUARIO);
+    NOMBRE_USER := UPPER(p_usuario.NOMBREUSUARIO) || '_PLT'; -- Convertimos el nombre de usuario a mayúsculas y le añadimos el sufijo _PLT
 
     -- Verifica si el usuario ya existe
     SELECT COUNT(*) INTO v_usuario_id 
@@ -509,7 +509,7 @@ BEGIN
         Cuenta_Dueno
     ) VALUES (
         p_usuario.Id,
-        p_usuario.NombreUsuario,
+        NOMBRE_USER,
         p_usuario.NombreCompleto,
         p_usuario.Avatar,
         p_usuario.CorreoElectronico,
@@ -521,13 +521,17 @@ BEGIN
     COMMIT;
 
     -- Crear el usuario en Oracle
-    EXECUTE IMMEDIATE 'CREATE USER "' || NOMBRE_USER || '_PLT" IDENTIFIED BY "' || p_password || '"';
+    EXECUTE IMMEDIATE 'CREATE USER "' || NOMBRE_USER || '" IDENTIFIED BY "' || p_password || '"';
 
     -- Asignar el rol
-    EXECUTE IMMEDIATE 'GRANT "' || p_rol || '" TO "' || NOMBRE_USER || '"';
+    EXECUTE IMMEDIATE 'GRANT "' || p_rol || '" TO "' || NOMBRE_USER;
 
     -- Asignar el perfil
     EXECUTE IMMEDIATE 'ALTER USER "' || NOMBRE_USER || '" PROFILE USERPLYTIX_PROFILE';
+
+    -- Damos permisos para que pueda ejecutar las funciones y procedimientos de los paquetes. Lo suyo seria crear varios paquetes y dar permisos solo a las funciones y procedimientos que nosotrso queramos que el usuario pueda ejecutar
+    EXECUTE IMMEDIATE 'GRANT EXECUTE ON PKG_ADMIN_PRODUCTOS TO "' || NOMBRE_USER;
+    EXECUTE IMMEDIATE 'GRANT EXECUTE ON PKG_ADMIN_PRODUCTOS_AVANZADO TO "' || NOMBRE_USER;
 
     -- Crear sinónimos
     EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".USUARIO_ESTANDAR FOR V_USUARIO_ESTANDAR';
@@ -541,6 +545,7 @@ BEGIN
     EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".REL_PRODUCTO_CATEGORIA FOR V_REL_PRODUCTO_CATEGORIA';
     EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".RELACIONADO FOR V_RELACIONADO';
     EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".ATRIBUTO_PRODUCTO FOR V_ATRIBUTO_PRODUCTO';
+
 
 EXCEPTION
         WHEN EXCEPTION_USUARIO_EXISTENTE THEN

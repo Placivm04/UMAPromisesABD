@@ -401,3 +401,32 @@ SELECT * FROM dba_scheduler_jobs WHERE  job_name = 'J_LIMPIA_TRAZA' OR job_name 
 
 
 
+-- PRUEBAS FUNCIONES
+
+-- 9) CREATE USER
+
+SELECT * FROM USUARIO WHERE NOMBREUSUARIO = 'jdoe';
+
+DECLARE
+    v_usuario USUARIO%ROWTYPE;
+BEGIN
+    -- Simulamos datos de entrada
+    v_usuario.Id := 888;
+    v_usuario.NombreUsuario := 'jdoe';
+    v_usuario.NombreCompleto := 'John Doe';
+    v_usuario.Avatar := 'https://example.com/avatar.jpg';
+    v_usuario.CorreoElectronico := 'jdoe@example.com';
+    v_usuario.Telefono := 123456789;
+    v_usuario.Cuenta_Id := 1;
+    v_usuario.Cuenta_Dueno := NULL;
+
+    -- Llamamos al procedimiento con el usuario, el rol deseado y una contraseña
+    PKG_ADMIN_PRODUCTOS.P_CREAR_USUARIO(
+        p_usuario => v_usuario,
+        p_rol => 'ROL_USUARIO',
+        p_password => 'PRUEBA'
+    );
+END;
+/
+
+SELECT * FROM USUARIO WHERE NOMBREUSUARIO = 'jdoe';
