@@ -130,10 +130,14 @@ END F_ES_USUARIO_CUENTA;
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 
 -- 2 -
-    FUNCTION F_CONTAR_PRODUCTOS_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE) 
+     FUNCTION F_CONTAR_PRODUCTOS_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE) 
         RETURN NUMBER AS
-        v_num_productos NUMBER;
+        v_num_productos NUMBER := 0;
         v_cuenta NUMBER;
+
+        -- CURSOR PARA HACER EL SELECT Y OBTENER EL NÚMERO DE PRODUCTOS YA QUE ME DA FALLO EL FOR UPDATE
+        CURSOR C_PRODUCTO IS SELECT * FROM PRODUCTO WHERE CUENTA_ID = p_cuenta_id FOR UPDATE;
+        
 
     BEGIN
 
@@ -143,6 +147,8 @@ END F_ES_USUARIO_CUENTA;
         IF v_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
         END IF;
+
+        -- CONTAMOS EL NÚMERO DE PRODUCTOS ASOCIADOS A LA CUENTA
         SELECT COUNT(*) INTO v_num_productos FROM PRODUCTO WHERE CUENTA_ID = p_cuenta_id;
 
         RETURN v_num_productos;
@@ -246,19 +252,24 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
 -- 5 ---------------------------------------------------------------------
 
 
-    PROCEDURE P_ACTUALIZAR_NOMBRE_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
+   PROCEDURE P_ACTUALIZAR_NOMBRE_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
         p_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE, p_nuevo_nombre IN 
         PRODUCTO.NOMBRE%TYPE) AS
 
         -- Variables declaradas para almacenar los resultados de las consultas
-        v_cuenta NUMBER; -- Para contar si existe la cuenta
+        v_cuenta NUMBER := 0; -- Para contar si existe la cuenta
         v_producto_cuenta NUMBER; -- Para contar si existe el producto
         v_filas_afectadas NUMBER; -- Para contar las filas afectadas por la actualización
+
+        -- DECLARAMOS UN CURSOR PARA HACER EL SELECT SI VER SI LA CUENTA EXISTE YA QUE ME DA ERROR AL HACER EL FOR UPDATE
+        CURSOR C_CUENTA IS SELECT * FROM CUENTA WHERE ID = p_cuenta_id FOR UPDATE;
 
     BEGIN
 
         -- VERIFICAMOS SI LA CUENTA EXISTE
-        SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id;
+        FOR R_CUENTA IN C_CUENTA LOOP
+            v_cuenta := 1; -- Si el cursor devuelve una fila, la cuenta existe
+        END LOOP;
 
         IF v_cuenta = 0 THEN
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
@@ -287,7 +298,6 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
             REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
             RAISE;
     END P_ACTUALIZAR_NOMBRE_PRODUCTO;
-
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 
 -- 6 - MODIFICAR EL TIPO DE EXCEPCION A EXCEPTION_ASOCIACION_DUPLICADA (AHORA MISMO ESTA PUESTO QUE LANCE NO_DATA_FOUND)
