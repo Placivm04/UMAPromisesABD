@@ -21,6 +21,9 @@ create or replace PACKAGE PKG_ADMIN_PRODUCTOS AS
     EXCEPTION_USUARIO_EXISTENTE EXCEPTION; -- Excepción personalizada para el caso de que el usuario ya exista
     PRAGMA EXCEPTION_INIT(EXCEPTION_USUARIO_EXISTENTE, -20003);
 
+    INVALID_DATA EXCEPTION; -- Excepción personalizada para el caso de que los datos no sean válidos
+    PRAGMA EXCEPTION_INIT(INVALID_DATA, -20004);
+
     -- DEFINIMOS LAS FUNCIONES Y PROCEDIMIENTOS QUE VAMOS A UTILIZAR
     FUNCTION F_OBTENER_PLAN_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE) RETURN PLAN%ROWTYPE;
 
@@ -275,6 +278,11 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
             RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
         END IF;
 
+        -- VERIFICAMOS QUE EL NOMBRE DEL PRODUCTO NO SEA NULO O VACÍO
+        IF p_nuevo_nombre IS NULL OR TRIM(p_nuevo_nombre) = '' THEN
+            RAISE INVALID_DATA; -- Lanza la excepción personalizada si el nombre es nulo o vacío
+        END IF;
+
         -- VERIFICAMOS SI EL PRODUCTO EXISTE
         SELECT COUNT(*) INTO v_producto_cuenta FROM PRODUCTO WHERE GTIN = p_producto_gtin AND CUENTA_ID = p_cuenta_id;
 
@@ -288,6 +296,10 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
         COMMIT;
 
     EXCEPTION
+        WHEN INVALID_DATA THEN
+            DBMS_OUTPUT.PUT_LINE('El nombre del producto no puede ser nulo o vacío.');
+            ROLLBACK;
+            RAISE;
         WHEN NO_DATA_FOUND THEN
             DBMS_OUTPUT.PUT_LINE('No se encontró el producto para la cuenta con ID: ' || p_cuenta_id);
             ROLLBACK;
