@@ -578,6 +578,7 @@ EXCEPTION
 
         WHEN OTHERS THEN
             DELETE FROM USUARIO WHERE NOMBREUSUARIO = NOMBRE_USER;
+            COMMIT;
             DBMS_OUTPUT.PUT_LINE('Error inesperado: ' || SQLERRM);
             REGISTRA_ERRORES('Error inesperado Al Crear Usuario Nuevo: ' || SQLERRM, $$PLSQL_UNIT);
             RAISE;
