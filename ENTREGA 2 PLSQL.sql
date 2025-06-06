@@ -170,6 +170,12 @@ create or replace PACKAGE BODY PKG_ADMIN_PRODUCTOS_AVANZADO AS
         V_CATEG_DESTINO NUMBER;
 
     BEGIN 
+    
+        V_CUENTA := F_ES_USUARIO_CUENTA(P_CUENTA_ID);
+        
+        IF v_cuenta = 0 THEN
+            RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
+        END IF;
 
         -- VERIFICAMOS QUE LA CUENTA EXISTE
         SELECT COUNT(*) INTO V_CUENTA FROM CUENTA WHERE ID = p_cuenta_id;
@@ -234,9 +240,15 @@ PROCEDURE P_REPLICAR_ATRIBUTOS(
 
     V_PRODUCTO NUMBER;
     V_REGISTRO NUMBER;
+    V_CUENTA NUMBER;
 
 BEGIN
     
+        V_CUENTA := F_ES_USUARIO_CUENTA(P_CUENTA_ID);
+        
+        IF v_cuenta = 0 THEN
+            RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
+        END IF;
 
     -- VERIFICAMOS QUE EL PRODUCTO ORIGEN EXISTE
         SELECT COUNT(*) INTO V_PRODUCTO FROM PRODUCTO WHERE GTIN = p_producto_gtin_origen AND CUENTA_ID = p_cuenta_id;
@@ -299,6 +311,7 @@ END P_REPLICAR_ATRIBUTOS;
     
 END PKG_ADMIN_PRODUCTOS_AVANZADO;
 /
+
 -- JOBS
 
 -- J_LIMPIA_TRAZA: Limpia las entradas de la tabla TRAZA que tengan más de 1 año.

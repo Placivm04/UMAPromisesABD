@@ -71,6 +71,7 @@ FUNCTION F_ES_USUARIO_CUENTA(p_cuenta_id IN CUENTA.ID%TYPE)
     RETURN NUMBER AS
     v_usuario_id NUMBER;
 BEGIN
+
     -- OBTENEMOS EL ID DE SU CUENTA QUE HACE LA LLAMADA
     SELECT CUENTA_ID INTO v_usuario_id FROM USUARIO WHERE NOMBREUSUARIO = USER;
 
@@ -100,6 +101,12 @@ END F_ES_USUARIO_CUENTA;
         v_plan_cuenta CUENTA.PLAN_ID%TYPE;
 
     BEGIN
+    
+        V_CUENTA := F_ES_USUARIO_CUENTA(P_CUENTA_ID);
+        
+        IF v_cuenta = 0 THEN
+            RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
+        END IF;
 
         SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id;
         IF v_cuenta = 0 THEN
@@ -172,7 +179,7 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
         p_cuenta_id IN PRODUCTO.CUENTA_ID%TYPE) 
         RETURN NUMBER IS
 
-            CURSOR C_ATRIBUTO IS SELECT * FROM ATRIBUTO FOR UPDATE;
+            CURSOR C_ATRIBUTO IS SELECT * FROM ATRIBUTO WHERE CUENTA_ID = p_cuenta_id FOR UPDATE;
 
             -- Variables declaradas para almacenar los resultados de las consultas
 
@@ -181,6 +188,12 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
             v_valor NUMBER; -- Para almacenar el valor del atributo
 
     BEGIN
+    
+        V_CUENTA := F_ES_USUARIO_CUENTA(P_CUENTA_ID);
+        
+        IF v_cuenta = 0 THEN
+            RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
+        END IF;
 
         -- VERIFICAMOS SI LA CUENTA EXISTE
         SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id;
@@ -230,6 +243,12 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
         v_cuenta NUMBER;
 
     BEGIN
+    
+        V_CUENTA := F_ES_USUARIO_CUENTA(P_CUENTA_ID);
+        
+        IF v_cuenta = 0 THEN
+            RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
+        END IF;
 
         -- VERIFICAMOS SI LA CUENTA EXISTE
         SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id;
@@ -269,6 +288,14 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
         CURSOR C_CUENTA IS SELECT * FROM CUENTA WHERE ID = p_cuenta_id FOR UPDATE;
 
     BEGIN
+    
+        V_CUENTA := F_ES_USUARIO_CUENTA(P_CUENTA_ID);
+        
+        IF v_cuenta = 0 THEN
+            RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
+        END IF;
+        
+        V_CUENTA := 0;
 
         -- VERIFICAMOS SI LA CUENTA EXISTE
         FOR R_CUENTA IN C_CUENTA LOOP
@@ -311,8 +338,8 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
             REGISTRA_ERRORES('Error inesperado: ' || SQLERRM, $$PLSQL_UNIT);
             RAISE;
     END P_ACTUALIZAR_NOMBRE_PRODUCTO;
-----------------------------------------------------------------------------------------------------------------------------------------------------
 
+----------------------------------------------------------------------------------------------------------------------------------------------------
 -- 6 - MODIFICAR EL TIPO DE EXCEPCION A EXCEPTION_ASOCIACION_DUPLICADA (AHORA MISMO ESTA PUESTO QUE LANCE NO_DATA_FOUND)
 
     PROCEDURE P_ASOCIAR_ACTIVO_A_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE, 
@@ -324,9 +351,15 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
         v_producto_cuenta NUMBER; -- Para contar si existe el producto
         v_activos_cuenta NUMBER; -- Para contar si existe el activo
         v_asociacion_existente NUMBER; -- Para contar si ya existe la asociación
-
+    
     BEGIN
-
+        
+        V_CUENTA := F_ES_USUARIO_CUENTA(p_producto_cuenta_id);
+        
+        IF v_cuenta = 0 THEN
+            RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
+        END IF;
+        
         -- VERIFICAMOS SI LA CUENTA EXISTE
         SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_producto_cuenta_id;
 
@@ -392,7 +425,13 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
         v_producto_cuenta NUMBER; -- Para contar si existe el producto
 
     BEGIN
-
+        
+        V_CUENTA := F_ES_USUARIO_CUENTA(P_CUENTA_ID);
+        
+        IF v_cuenta = 0 THEN
+            RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
+        END IF;
+        
         -- VERIFICAMOS SI LA CUENTA EXISTE
         SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id;
 
@@ -445,6 +484,14 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
         v_producto_gtin PRODUCTO.GTIN%TYPE;
 
     BEGIN
+    
+    
+        V_CUENTA := F_ES_USUARIO_CUENTA(P_CUENTA_ID);
+        
+        IF v_cuenta = 0 THEN
+            RAISE NO_DATA_FOUND; -- Lanza la excepción personalizada si no hay un plan asignado
+        END IF;
+        
         -- VERIFICAMOS SI LA CUENTA EXISTE
         SELECT COUNT(*) INTO v_cuenta FROM CUENTA WHERE ID = p_cuenta_id;
 
@@ -500,6 +547,7 @@ FUNCTION F_VALIDAR_ATRIBUTOS_PRODUCTO(p_producto_gtin IN PRODUCTO.GTIN%TYPE,
 
     -- 9
 
+
     PROCEDURE P_CREAR_USUARIO(
     p_usuario  IN USUARIO%ROWTYPE,
     p_rol      IN VARCHAR,
@@ -511,7 +559,6 @@ IS
 BEGIN
     NOMBRE_USER := UPPER(p_usuario.NOMBREUSUARIO) || '_PLT'; -- Convertimos el nombre de usuario a mayúsculas y le añadimos el sufijo _PLT
 
-    -- Verifica si el usuario ya existe
     SELECT COUNT(*) INTO v_usuario_id 
     FROM USUARIO 
     WHERE UPPER(NOMBREUSUARIO) = NOMBRE_USER;
@@ -545,29 +592,30 @@ BEGIN
 
     -- Crear el usuario en Oracle
     EXECUTE IMMEDIATE 'CREATE USER "' || NOMBRE_USER || '" IDENTIFIED BY "' || p_password || '"';
-
+    
     -- Asignar el rol
-    EXECUTE IMMEDIATE 'GRANT "' || p_rol || '" TO "' || NOMBRE_USER;
-
+    EXECUTE IMMEDIATE 'GRANT "' || p_rol || '" TO "' || NOMBRE_USER || '"';
+    
     -- Asignar el perfil
     EXECUTE IMMEDIATE 'ALTER USER "' || NOMBRE_USER || '" PROFILE USERPLYTIX_PROFILE';
+    
+    -- Dar permisos para ejecutar los paquetes
+    EXECUTE IMMEDIATE 'GRANT EXECUTE ON PKG_ADMIN_PRODUCTOS TO "' || NOMBRE_USER || '"';
+    EXECUTE IMMEDIATE 'GRANT EXECUTE ON PKG_ADMIN_PRODUCTOS_AVANZADO TO "' || NOMBRE_USER || '"';
+    
+    -- Crear sinónimos (agregado comillas dobles también en el nombre del sinónimo después del punto)
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '"."USUARIO_ESTANDAR" FOR V_USUARIO_ESTANDAR';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '"."PRODUCTO" FOR V_USUARIO_PRODUCTO';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '"."ACTIVO" FOR V_USUARIO_ACTIVO';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '"."ATRIBUTO" FOR V_USUARIO_ATRIBUTO';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '"."PLAN" FOR V_USUARIO_PLAN';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '"."PRODUCTO_PUBLICO" FOR V_PRODUCTO_PUBLICO';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '"."REL_ACTIVO_CATEGORIA" FOR V_ACTIVO_REL_ACTIVO_CATEGORIA';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '"."CATEGORIA" FOR V_CATEGORIA';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '"."REL_PRODUCTO_CATEGORIA" FOR V_REL_PRODUCTO_CATEGORIA';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '"."RELACIONADO" FOR V_RELACIONADO';
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '"."ATRIBUTO_PRODUCTO" FOR V_ATRIBUTO_PRODUCTO';
 
-    -- Damos permisos para que pueda ejecutar las funciones y procedimientos de los paquetes. Lo suyo seria crear varios paquetes y dar permisos solo a las funciones y procedimientos que nosotrso queramos que el usuario pueda ejecutar
-    EXECUTE IMMEDIATE 'GRANT EXECUTE ON PKG_ADMIN_PRODUCTOS TO "' || NOMBRE_USER;
-    EXECUTE IMMEDIATE 'GRANT EXECUTE ON PKG_ADMIN_PRODUCTOS_AVANZADO TO "' || NOMBRE_USER;
-
-    -- Crear sinónimos
-    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".USUARIO_ESTANDAR FOR V_USUARIO_ESTANDAR';
-    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".PRODUCTO FOR V_USUARIO_PRODUCTO';
-    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".ACTIVO FOR V_USUARIO_ACTIVO';
-    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".ATRIBUTO FOR V_USUARIO_ATRIBUTO';
-    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".PLAN FOR V_USUARIO_PLAN';
-    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".PRODUCTO_PUBLICO FOR V_PRODUCTO_PUBLICO';
-    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".REL_ACTIVO_CATEGORIA FOR V_ACTIVO_REL_ACTIVO_CATEGORIA';
-    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".CATEGORIA FOR V_CATEGORIA';
-    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".REL_PRODUCTO_CATEGORIA FOR V_REL_PRODUCTO_CATEGORIA';
-    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".RELACIONADO FOR V_RELACIONADO';
-    EXECUTE IMMEDIATE 'CREATE OR REPLACE SYNONYM "' || NOMBRE_USER || '".ATRIBUTO_PRODUCTO FOR V_ATRIBUTO_PRODUCTO';
 
 
 EXCEPTION
@@ -585,7 +633,6 @@ EXCEPTION
 END P_CREAR_USUARIO;
 
 END PKG_ADMIN_PRODUCTOS;
-/
 
 
 -- CREAMOS ESTE JOB QUE RECOJA LOS USUARIOS QUE ESTAN CREADOS PERO NO ESTAN EN LA BASE DE DATOS DEL SISTEMA, Y LOS ELIMINE
